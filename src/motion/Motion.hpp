@@ -52,4 +52,11 @@ namespace Hyprdrive::Motion {
     // changed; call after registerConfig, on every config reload (a reload can
     // drop plugin beziers) and whenever the preset may have been set live.
     void sync();
+
+    // The top-chrome edge eased to a new value instead of jumping, as Omarchy's
+    // bar grows mid-open. NixOS dots: docs/manual.md#the-overview-under-a-growing-bar
+    float topChromeEase(uint64_t monitor, float raw);
+
+    // Whether that ease is still moving on `monitor`, so the dock asks frames.
+    bool topChromeEasing(uint64_t monitor);
 }

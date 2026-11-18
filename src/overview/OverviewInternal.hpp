@@ -12,6 +12,7 @@
 // when compile time starts to hurt.
 
 #include "FramePacing.hpp"
+#include "Motion.hpp"
 #include "IdentityLive.hpp"
 #include "MotionClock.hpp"
 #include "MotionMath.hpp"
@@ -1494,7 +1495,14 @@ inline float overviewSearchLogicalHeight(PHLMONITOR monitor) {
 // is what the first X50 build did.
 // Only WIDE surfaces pinned to the monitor's top edge count: the same rice puts
 // 250px screenCorners up there, and docking below one of those is a 23px move.
+inline float overviewTopChromeBottomRawL(PHLMONITOR monitor);
+
 inline float overviewTopChromeBottomL(PHLMONITOR monitor) {
+    const float RAW = overviewTopChromeBottomRawL(monitor);
+    return monitor ? Hyprdrive::Motion::topChromeEase(sc<uint64_t>(monitor->m_id), RAW) : RAW;
+}
+
+inline float overviewTopChromeBottomRawL(PHLMONITOR monitor) {
     if (!monitor)
         return 0.F;
 

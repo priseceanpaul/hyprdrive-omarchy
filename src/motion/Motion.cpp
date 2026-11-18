@@ -11,8 +11,10 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstring>
 #include <string_view>
+#include <unordered_map>
 
 namespace Hyprdrive::Motion {
     namespace {
@@ -91,5 +93,51 @@ namespace Hyprdrive::Motion {
         Animation::mgr()->addBezierWithName(HOUSE_DECEL_BEZIER, Vector2D{P.decel.x1, P.decel.y1}, Vector2D{P.decel.x2, P.decel.y2});
         Animation::mgr()->addBezierWithName(HOUSE_ACCEL_BEZIER, Vector2D{P.accel.x1, P.accel.y1}, Vector2D{P.accel.x2, P.accel.y2});
         g_live.synced = &P;
+    }
+
+    namespace {
+        constexpr float TOP_CHROME_EASE_MS = 180.F;
+
+        struct STopChromeEase {
+            float                                 from = 0.F, to = 0.F;
+            std::chrono::steady_clock::time_point start;
+        };
+
+        std::unordered_map<uint64_t, STopChromeEase>& topChromeEases() {
+            static std::unordered_map<uint64_t, STopChromeEase> eases;
+            return eases;
+        }
+
+        float topChromeT(const STopChromeEase& e, std::chrono::steady_clock::time_point now) {
+            return std::chrono::duration<float, std::milli>(now - e.start).count() / TOP_CHROME_EASE_MS;
+        }
+
+        float topChromeValue(const STopChromeEase& e, std::chrono::steady_clock::time_point now) {
+            const float T = topChromeT(e, now);
+            return T >= 1.F ? e.to : e.from + (e.to - e.from) * houseFixed(true, T);
+        }
+    }
+
+    float topChromeEase(uint64_t monitor, float raw) {
+        const auto NOW   = std::chrono::steady_clock::now();
+        auto&      EASES = topChromeEases();
+        const auto IT    = EASES.find(monitor);
+        if (IT == EASES.end()) {
+            EASES.emplace(monitor, STopChromeEase{.from = raw, .to = raw, .start = NOW - std::chrono::seconds(1)});
+            return raw;
+        }
+
+        auto& e = IT->second;
+        if (raw != e.to) {
+            e.from  = topChromeValue(e, NOW);
+            e.to    = raw;
+            e.start = NOW;
+        }
+        return topChromeValue(e, NOW);
+    }
+
+    bool topChromeEasing(uint64_t monitor) {
+        const auto IT = topChromeEases().find(monitor);
+        return IT != topChromeEases().end() && topChromeT(IT->second, std::chrono::steady_clock::now()) < 1.F;
     }
 }

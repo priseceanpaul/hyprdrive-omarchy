@@ -539,6 +539,9 @@ const char* needsFramesReason(PHLMONITOR monitor, const SLayout& layout, const S
     if (autohideAnimating(monitor))
         return "autohide";
 
+    if (Motion::topChromeEasing(sc<uint64_t>(monitor->m_id)))
+        return "top-chrome";
+
     // X31. The wiggle's rotation changes every frame while it runs.
     //
     // Gated on the pill being ON SCREEN for this monitor (user, 2026-09-14): a
