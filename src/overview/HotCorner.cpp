@@ -203,14 +203,15 @@ namespace Hyprdrive::HotCorner {
             wl_event_source_timer_update(g_timer, std::clamp<int>(Config::getValue<int>(KEY_DELAY), 1, 2000));
         }
 
-        // DRAG TO THE TOP (NixOS dots): a window carried near the island's zone opens the island
+        // DRAG TO THE SIDE (NixOS dots): a window carried near the sides island's zone opens it
         // on its workspaces and shrinks as Hyprdrive's drag does. docs/manual.md#dragging-a-window-to-the-sides
         constexpr int    DRAG_TICK_MS = 16;
         constexpr double DRAG_NEAR_PX = 120.0; // logical: how close to the zone opens the island
-        constexpr double DRAG_LEAVE   = 0.45;  // of the monitor's height: further down closes it again
+        constexpr double DRAG_LEAVE   = 0.45;  // of the monitor's width: further in closes it again
         wl_event_source* g_dragTimer  = nullptr;
         bool             g_islandDrag = false; // the island is open on this drag
         CBox             g_dragBox;            // the monitor it opened on, logical
+        bool             g_dragRight = true;   // which outer edge of it the sides island sits on
         Vector2D         g_dragLast;           // the pointer as last told to the island
         float            g_miniFrom = 0.F, g_miniTo = 0.F; // 0 full size, 1 mini
         double           g_dragK    = 0.0; // the island's cell/monitor ratio; 0 until it says, then drag_mini_scale
@@ -309,6 +310,72 @@ namespace Hyprdrive::HotCorner {
             return 0;
         }
 
+        // THE SIDES (NixOS dots, docs/manual.md#the-hyprdrive-sides): the middle band of one monitor's
+        // outer left or right edge, which the user chose. Only the outermost edge counts: a monitor
+        // beside it puts the island where a window would be dropped on the other screen, so it is refused.
+        constexpr const char* KEY_SIDES        = "plugin:hyprdrive:sides:enabled";
+        constexpr const char* KEY_SIDES_LAYOUT = "plugin:hyprdrive:sides:layout";
+        constexpr const char* KEY_SIDES_HEIGHT = "plugin:hyprdrive:sides:zone_height";
+        constexpr const char* KEY_SIDES_DELAY  = "plugin:hyprdrive:sides:delay_ms";
+
+        // The layout names the sides each screen's island is on, as "DP-1:left,DP-2:both".
+        bool layoutHas(const PHLMONITOR& monitor, bool right) {
+            const auto LAYOUT = Config::getValue<std::string>(KEY_SIDES_LAYOUT);
+            size_t     pos    = 0;
+            while (pos <= LAYOUT.size()) {
+                auto end = LAYOUT.find(',', pos);
+                if (end == std::string::npos)
+                    end = LAYOUT.size();
+                const auto ENTRY = LAYOUT.substr(pos, end - pos);
+                pos              = end + 1;
+                const auto COLON = ENTRY.rfind(':');
+                if (COLON == std::string::npos || ENTRY.substr(0, COLON) != monitor->m_name)
+                    continue;
+                const auto SIDE = ENTRY.substr(COLON + 1);
+                if (SIDE == "both" || SIDE == (right ? "right" : "left"))
+                    return true;
+            }
+            return false;
+        }
+
+        // The middle band of one outer edge, for a side the layout names, that the pointer is on.
+        bool sideAt(const Vector2D& point, double reach, PHLMONITOR& monitorOut, bool& rightOut) {
+            if (!Config::getValue<bool>(KEY_SIDES))
+                return false;
+            for (const auto& M : State::monitorState()->monitors()) {
+                if (!M || !M->m_enabled)
+                    continue;
+                const auto BOX     = M->logicalBox();
+                const double MID_Y = BOX.y + BOX.h / 2.0;
+                const double HALF  = std::max(40, Config::getValue<int>(KEY_SIDES_HEIGHT)) / 2.0 + reach;
+                if (std::abs(point.y - MID_Y) > HALF || !BOX.containsPoint(point))
+                    continue;
+                for (const bool RIGHT : {false, true}) {
+                    if (!layoutHas(M, RIGHT))
+                        continue;
+                    if (RIGHT ? point.x < BOX.x + BOX.w - reach : point.x > BOX.x + reach)
+                        continue;
+                    // Only an outer edge: a screen beside it would take the island's place.
+                    const Vector2D PROBE{RIGHT ? BOX.x + BOX.w + 1 : BOX.x - 1, MID_Y};
+                    bool           taken = false;
+                    for (const auto& OTHER : State::monitorState()->monitors())
+                        if (OTHER && OTHER != M && OTHER->m_enabled && OTHER->logicalBox().containsPoint(PROBE))
+                            taken = true;
+                    if (taken)
+                        continue;
+                    monitorOut = M;
+                    rightOut   = RIGHT;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // The event's data: the screen and the side, "DP-1,right".
+        std::string sideData(const PHLMONITOR& monitor, bool right) {
+            return monitor->m_name + (right ? ",right" : ",left");
+        }
+
         void dragMove() {
             const auto WINDOW = movedWindow();
             if (!WINDOW || !g_pInputManager) {
@@ -319,19 +386,22 @@ namespace Hyprdrive::HotCorner {
             const auto POINT = g_pInputManager->getMouseCoordsInternal();
 
             if (!g_islandDrag) {
-                const auto MONITOR = islandMonitor(POINT, DRAG_NEAR_PX);
-                if (!MONITOR || dragBlocked(MONITOR) || !g_pEventManager)
+                PHLMONITOR MONITOR;
+                bool       RIGHT = true;
+                if (!sideAt(POINT, DRAG_NEAR_PX, MONITOR, RIGHT) || dragBlocked(MONITOR) || !g_pEventManager)
                     return;
                 g_islandDrag = true;
                 g_dragBox    = MONITOR->logicalBox();
+                g_dragRight  = RIGHT;
                 g_dragLast   = POINT;
-                g_pEventManager->postEvent(SHyprIPCEvent{.event = "hyprdriveislanddrag", .data = MONITOR->m_name});
+                g_pEventManager->postEvent(SHyprIPCEvent{.event = "hyprdriveislanddrag", .data = sideData(MONITOR, RIGHT)});
                 miniTo(1.F);
                 return;
             }
 
-            // Carried well down, away from the island: it closes and the window grows back.
-            if (POINT.y > g_dragBox.y + g_dragBox.h * DRAG_LEAVE) {
+            // Carried well inward, away from the edge: it closes and the window grows back.
+            const double INWARD = g_dragRight ? g_dragBox.x + g_dragBox.w - POINT.x : POINT.x - g_dragBox.x;
+            if (INWARD > g_dragBox.w * DRAG_LEAVE) {
                 if (g_pEventManager)
                     g_pEventManager->postEvent(SHyprIPCEvent{.event = "hyprdriveislanddragend", .data = ""});
                 g_islandDrag = false;
@@ -402,6 +472,47 @@ namespace Hyprdrive::HotCorner {
             return 0;
         }
 
+        // THE SIDES AT REST (NixOS dots, docs/manual.md#the-hyprdrive-sides): the pointer resting on the
+        // chosen edge's middle opens the sides island, as the notch opens from its edge. Once per visit.
+        wl_event_source* g_sidesTimer   = nullptr;
+        bool             g_sidesPending = false;
+        bool             g_sidesLatched = false;
+
+        void sidesCancel() {
+            g_sidesPending = false;
+            if (g_sidesTimer)
+                wl_event_source_timer_update(g_sidesTimer, 0);
+        }
+
+        int sidesFire(void*) {
+            if (!g_sidesPending)
+                return 0;
+            g_sidesPending = false;
+            if (!Config::getValue<bool>(KEY_SIDES) || !g_pInputManager || !g_pEventManager)
+                return 0;
+            PHLMONITOR MONITOR;
+            bool       RIGHT = true;
+            if (!sideAt(g_pInputManager->getMouseCoordsInternal(), EDGE_PX, MONITOR, RIGHT) || islandBlocked(MONITOR))
+                return 0;
+            g_sidesLatched = true;
+            g_pEventManager->postEvent(SHyprIPCEvent{.event = "hyprdrivesides", .data = sideData(MONITOR, RIGHT)});
+            return 0;
+        }
+
+        void sidesMove() {
+            PHLMONITOR MONITOR;
+            bool       RIGHT = true;
+            if (!g_pInputManager || !sideAt(g_pInputManager->getMouseCoordsInternal(), EDGE_PX, MONITOR, RIGHT)) {
+                sidesCancel();
+                g_sidesLatched = false;
+                return;
+            }
+            if (g_sidesLatched || g_sidesPending || islandBlocked(MONITOR))
+                return;
+            g_sidesPending = true;
+            wl_event_source_timer_update(g_sidesTimer, std::clamp<int>(Config::getValue<int>(KEY_SIDES_DELAY), 1, 2000));
+        }
+
         void islandMove() {
             const auto MONITOR = g_pInputManager && Config::getValue<bool>(KEY_ISLAND) ? islandMonitor(g_pInputManager->getMouseCoordsInternal(), 0.0) : nullptr;
             if (!MONITOR) {
@@ -425,6 +536,8 @@ namespace Hyprdrive::HotCorner {
             g_islandTimer = wl_event_loop_add_timer(g_pCompositor->m_wlEventLoop, islandFire, nullptr);
         if (!g_dragTimer)
             g_dragTimer = wl_event_loop_add_timer(g_pCompositor->m_wlEventLoop, dragFire, nullptr);
+        if (!g_sidesTimer)
+            g_sidesTimer = wl_event_loop_add_timer(g_pCompositor->m_wlEventLoop, sidesFire, nullptr);
 
         g_dragRender = Event::bus()->m_events.render.stage.listen([](eRenderStage stage) {
             // Hyprland's move puts the window back to full size on every motion; each frame shrinks it again.
@@ -438,6 +551,7 @@ namespace Hyprdrive::HotCorner {
         g_move = Event::bus()->m_events.input.mouse.move.listen([](Vector2D, Event::SCallbackInfo&) {
             onMove();
             islandMove();
+            sidesMove();
             dragMove();
         });
 
@@ -453,6 +567,10 @@ namespace Hyprdrive::HotCorner {
                 if (g_islandPending) {
                     islandCancel();
                     g_islandLatched = true;
+                }
+                if (g_sidesPending) {
+                    sidesCancel();
+                    g_sidesLatched = true;
                 }
                 return;
             }
@@ -521,6 +639,11 @@ namespace Hyprdrive::HotCorner {
         if (g_dragTimer)
             wl_event_source_remove(g_dragTimer);
         g_dragTimer   = nullptr;
+        if (g_sidesTimer)
+            wl_event_source_remove(g_sidesTimer);
+        g_sidesTimer   = nullptr;
+        g_sidesPending = false;
+        g_sidesLatched = false;
         g_islandDrag  = false;
         dragRestore();
         g_islandPending = false;

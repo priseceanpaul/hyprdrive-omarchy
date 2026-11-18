@@ -403,6 +403,13 @@ static void registerConfigValuesFor() {
     addKey(makeShared<CBoolValue>(KEY("island:plugins"), "the island lists plugin panels, opening one on a click and stepping through them on a scroll", true));
     addKey(makeShared<CFloatValue>(KEY("island:scale"), "the island's size", 1.F, SFloatValueOptions{.min = 0.8F, .max = 1.5F}));
     addKey(makeShared<CFloatValue>(KEY("island:speed"), "how fast the island, and the dock while dock:grow is on, grow and shrink", 1.F, SFloatValueOptions{.min = 0.25F, .max = 4.F}));
+    // THE SIDES (NixOS dots, docs/manual.md#the-hyprdrive-sides): the island a carried window opens on one monitor's outer edge.
+    addKey(makeShared<CBoolValue>(KEY("sides:enabled"), "a window carried to the middle of the chosen monitor's outer edge opens the sides island", false));
+    addKey(makeShared<CStringValue>(KEY("sides:layout"),
+                                    "the sides each screen's island is on: screen:side pairs, comma-separated, side left, right or both (DP-1:left,DP-2:both); empty = none",
+                                    Hyprlang::STRING{""}));
+    addKey(makeShared<CIntValue>(KEY("sides:delay_ms"), "how long the pointer rests on that edge before the sides island opens", 120, SIntValueOptions{.min = 0, .max = 1000}));
+    addKey(makeShared<CIntValue>(KEY("sides:zone_height"), "how tall the band in the middle of that edge is that opens the sides island", 360, SIntValueOptions{.min = 80, .max = 1600}));
     addKey(makeShared<CBoolValue>(KEY("dock:grow"), "the autohidden dock grows out of the bottom edge on the island's spring, instead of sliding", true));
     addKey(makeShared<CBoolValue>(KEY("dock:island_style"), "the dock sits on the bottom edge like the island on the top one: square below, ears into the edge", false));
     addKey(makeShared<CBoolValue>(KEY("gestures:keep_swipe"),
