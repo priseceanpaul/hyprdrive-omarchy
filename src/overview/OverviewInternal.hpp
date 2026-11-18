@@ -64,6 +64,13 @@ namespace WindowPill = Hyprdrive::WindowPill;
 #include <hyprland/src/managers/KeybindManager.hpp>
 #include <hyprland/src/managers/SeatManager.hpp>
 #include <hyprland/src/layout/LayoutManager.hpp>
+
+// Local patch: reading order on the desktop, top to bottom then left to right,
+// shared by the grid's order and the drop that rearranges it. docs/manual.md#arranging-tiles
+inline bool arrangeLayoutBefore(const PHLWINDOW& l, const PHLWINDOW& r) {
+    const auto A = l->position(Desktop::View::IGeometric::GEOMETRIC_GOAL), B = r->position(Desktop::View::IGeometric::GEOMETRIC_GOAL);
+    return A.y != B.y ? A.y < B.y : A.x < B.x;
+}
 #include <hyprland/src/layout/algorithm/Algorithm.hpp>
 #include <hyprland/src/layout/space/Space.hpp>
 #include <hyprland/src/layout/target/Target.hpp>

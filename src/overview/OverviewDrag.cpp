@@ -1362,6 +1362,35 @@ void COverview::endWindowDrag() {
             return;
     }
 
+    // Local patch: which slot among its desktop's tiled windows the drop asks for,
+    // read from the grid as drawn mid-drag. docs/manual.md#arranging-tiles
+    std::vector<PHLWINDOW> arrangeOrder;
+    size_t                 arrangeTo      = 0;
+    const auto             ARRANGEWINDOW  = getOverviewWindowToShow(drag.activeWindow.lock());
+    const auto             ARRANGEMONITOR = pMonitor.lock();
+    if (ARRANGEWINDOW && ARRANGEMONITOR && !ARRANGEWINDOW->m_isFloating) {
+        const auto POINT = getOverviewMousePosLocal(ARRANGEMONITOR);
+        const auto PITCH = getWorkspaceRenderedPitch(ARRANGEMONITOR, scale->value(), layout);
+        for (size_t i = 0; i < images.size() && !workspaceAtStripPoint(POINT); ++i) {
+            if (!images[i] || images[i]->pWorkspace != ARRANGEWINDOW->m_workspace)
+                continue;
+            const auto OFFSET = workspaceOverviewOffset(i, activeWorkspaceIndex(), PITCH);
+            for (const auto& ref : images[i]->windows) {
+                const auto X = getOverviewWindowToShow(ref.lock());
+                if (!X || X->m_isFloating || !X->layoutTarget() || !overviewTileShown(X, ARRANGEMONITOR) || std::ranges::contains(arrangeOrder, X))
+                    continue;
+                arrangeOrder.emplace_back(X);
+                if (X == ARRANGEWINDOW)
+                    continue;
+                const auto BOX = getOverviewWindowBox(X, ARRANGEMONITOR, scale->value(), viewOffset->value(), OFFSET, layout);
+                if (POINT.y > BOX.y + BOX.h || (POINT.y >= BOX.y && POINT.x > BOX.middle().x))
+                    ++arrangeTo;
+            }
+            break;
+        }
+        std::ranges::stable_sort(arrangeOrder, arrangeLayoutBefore);
+    }
+
     // Before anything below reads a slot: the D5 return seed wants this window's
     // slot in the FULL grid, not the gap it has been leaving open.
     grid().dragExcluded = nullptr;
@@ -1404,6 +1433,21 @@ void COverview::endWindowDrag() {
     }
 
     gatherDropWorkspace(site);
+    // Local patch: walk the window to that slot by adjacent swaps, so the grid,
+    // ordered by layout, shows it where it was dropped. docs/manual.md#arranging-tiles
+    if (const auto IT = std::ranges::find(arrangeOrder, ARRANGEWINDOW);
+        IT != arrangeOrder.end() && site.window == ARRANGEWINDOW && !site.facts.moveWorkspace && sc<size_t>(IT - arrangeOrder.begin()) != arrangeTo) {
+        for (size_t at = IT - arrangeOrder.begin(); at != arrangeTo;) {
+            const size_t NEXT = at < arrangeTo ? at + 1 : at - 1;
+            g_layoutManager->switchTargets(arrangeOrder[at]->layoutTarget(), arrangeOrder[NEXT]->layoutTarget(), true);
+            std::swap(arrangeOrder[at], arrangeOrder[NEXT]);
+            at = NEXT;
+        }
+        clearDragPending();
+        rebuildPending = true;
+        damage();
+        return;
+    }
     if (Hyprdrive::Drop::resolve(site.facts).action == Hyprdrive::Drop::EAction::CancelToGrid) {
         commitDropCancel(site);
         return;

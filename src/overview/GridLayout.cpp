@@ -254,6 +254,9 @@ namespace OvInternal {
         // Hyprland's list: that is reordered by every click and raise, and the
         // grid followed it, so a tile could change slots under a hover.
         Hyprdrive::GridSolve::order(out, 0, out.size(), orderKey);
+
+        // Local patch: grid order follows the layout. docs/manual.md#arranging-tiles
+        std::ranges::stable_sort(out, arrangeLayoutBefore);
     }
 
     std::vector<PHLWINDOW> overviewGridWindows(const PHLWORKSPACE& workspace) {
