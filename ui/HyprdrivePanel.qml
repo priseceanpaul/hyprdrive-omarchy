@@ -412,6 +412,7 @@ Item {
     case "blurOn": return kb("plugin:hyprdrive:motion_blur:enabled")
     case "mosaicOn": return kb("plugin:hyprdrive:mosaic:enabled")
     case "islandOn": return kb("plugin:hyprdrive:island:enabled")
+    case "sidesOn": return kb("plugin:hyprdrive:sides:enabled")
     case "slideOn": return !kb("plugin:hyprdrive:dock:grow")
     case "canvasOn": return kb("plugin:hyprdrive:mosaic:enabled") && kb("plugin:hyprdrive:mosaic:infinite_canvas")
     case "edgePushOn": return kb("plugin:hyprdrive:mosaic:enabled") && kb("plugin:hyprdrive:mosaic:infinite_canvas") && kb("plugin:hyprdrive:mosaic:edge_push")
@@ -1344,7 +1345,7 @@ Item {
     property var row: ({})
     property bool first: false
     readonly property bool live: root.rowEnabled(row)
-    readonly property bool wide: row.type === "gestures" || row.type === "power" || row.type === "curve" || row.type === "icons" || row.type === "islandPlugins"
+    readonly property bool wide: row.type === "gestures" || row.type === "power" || row.type === "curve" || row.type === "icons" || row.type === "islandPlugins" || row.type === "sidesLayout"
     width: parent ? parent.width : 0
     implicitHeight: wide ? wideCol.implicitHeight + Style.space(24) : Math.max(labelCol.implicitHeight, controlHolder.implicitHeight) + Style.space(26)
 
@@ -1440,7 +1441,7 @@ Item {
       Loader {
         width: parent.width
         active: sr.wide
-        sourceComponent: sr.row.type === "curve" ? curveControl : sr.row.type === "gestures" ? gestureEditor : sr.row.type === "power" ? powerControl : sr.row.type === "icons" ? iconEditor : sr.row.type === "islandPlugins" ? islandPluginsEditor : null
+        sourceComponent: sr.row.type === "curve" ? curveControl : sr.row.type === "gestures" ? gestureEditor : sr.row.type === "power" ? powerControl : sr.row.type === "icons" ? iconEditor : sr.row.type === "islandPlugins" ? islandPluginsEditor : sr.row.type === "sidesLayout" ? sidesLayoutEditor : null
         property var row: sr.row
         property bool live: sr.live
       }
@@ -1503,6 +1504,74 @@ Item {
               if (at === -1) h.push(id)
               else h.splice(at, 1)
               root.setKey("plugin:hyprdrive:island:hidden", h.join(","))
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // The sides each screen's island is on (NixOS dots, docs/manual.md#the-hyprdrive-sides):
+  // None, Left, Right or Both for every screen, kept in sides:layout as "DP-1:left,DP-2:both".
+  Component {
+    id: sidesLayoutEditor
+    Column {
+      id: sle
+      property var row: parent ? parent.row : ({})
+      readonly property var pairs: String(root.k("plugin:hyprdrive:sides:layout", "") || "").split(",").filter(function(x) { return x !== "" })
+      readonly property var screens: root.hd && root.hd.monitors ? root.hd.monitors : []
+      function sideOf(name) {
+        for (var i = 0; i < pairs.length; i++) {
+          var at = pairs[i].lastIndexOf(":")
+          if (at > 0 && pairs[i].substring(0, at) === name) return pairs[i].substring(at + 1)
+        }
+        return "none"
+      }
+      function setSide(name, side) {
+        var out = []
+        for (var i = 0; i < screens.length; i++) {
+          var n = screens[i].name, v = n === name ? side : sideOf(n)
+          if (v !== "none") out.push(n + ":" + v)
+        }
+        root.setKey("plugin:hyprdrive:sides:layout", out.join(","))
+      }
+      width: parent ? parent.width : 0
+      spacing: Style.space(6)
+      Repeater {
+        model: sle.screens
+        Row {
+          id: screenRow
+          required property var modelData
+          spacing: Style.space(6)
+          Text {
+            width: Style.space(120)
+            anchors.verticalCenter: parent.verticalCenter
+            text: screenRow.modelData.label
+            color: root.fg
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.body
+            elide: Text.ElideRight
+          }
+          Repeater {
+            model: [{ v: "none", l: "None" }, { v: "left", l: "Left" }, { v: "right", l: "Right" }, { v: "both", l: "Both" }]
+            Rectangle {
+              required property var modelData
+              readonly property bool sel: sle.sideOf(screenRow.modelData.name) === modelData.v
+              width: Style.space(64)
+              height: Style.space(26)
+              radius: height / 2
+              color: sel ? root.accent : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.08)
+              Text {
+                anchors.centerIn: parent
+                text: parent.modelData.l
+                color: parent.sel ? root.bg : root.fg
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+              }
+              MouseArea {
+                anchors.fill: parent
+                onClicked: sle.setSide(screenRow.modelData.name, parent.modelData.v)
+              }
             }
           }
         }

@@ -249,6 +249,11 @@ KEY_META = [
     _k(PLUGIN + "island:border", "bool", "island", False),
     _k(PLUGIN + "island:scale", "float", "island", 1.0, min=0.8, max=1.5),
     _k(PLUGIN + "island:speed", "float", "island", 1.0, min=0.25, max=4),
+    # Sides (docs/manual.md#the-hyprdrive-sides in the NixOS dots)
+    _k(PLUGIN + "sides:enabled", "bool", "sides", False),
+    _k(PLUGIN + "sides:layout", "str", "sides", ""),  # edited per screen by the panel's Screens row
+    _k(PLUGIN + "sides:zone_height", "int", "sides", 360, min=80, max=1600),
+    _k(PLUGIN + "sides:delay_ms", "int", "sides", 120, min=0, max=1000),
     # Performance
     _k(PLUGIN + "smooth_frames", "bool", "performance", False),
     _k(PLUGIN + "live_layer_frost", "bool", "performance", True),
@@ -279,7 +284,7 @@ KEY_META = [
 # Groups a power profile neither saves nor applies. Mosaic rebinds Super+L and
 # can change the default layout; plugging in the charger must not do either.
 # The Keybinds section's switches all rebind keys.
-PROFILE_SKIP = {"mosaic", "keybinds", "island"}
+PROFILE_SKIP = {"mosaic", "keybinds", "island", "sides"}
 
 SCROLL_ON = PLUGIN + "binds:scroll_desktops"
 SCROLL_MODS_KEY = PLUGIN + "binds:scroll_desktops_mods"
@@ -1788,6 +1793,23 @@ def cmd_shell_stale(_args):
     return 1
 
 
+def monitor_list():
+    """Every connected screen, for the Sides section's Screens row: its connector
+    name (what sides:layout names) and a label. docs/manual.md#the-hyprdrive-sides"""
+    try:
+        mons = json.loads(hyprctl("-j", "monitors") or "[]")
+    except ValueError:
+        mons = []
+    out = []
+    for m in sorted(mons, key=lambda m: (m.get("x", 0), m.get("y", 0))):
+        name = m.get("name") or ""
+        if not name:
+            continue
+        label = "Built-in" if name.startswith("eDP") else ((m.get("model") or "").strip() or name)
+        out.append({"name": name, "label": label})
+    return out
+
+
 def dump():
     store = load_store()
     live = live_keys()
@@ -1839,6 +1861,7 @@ def dump():
         "roundedRadius": store.get("roundedRadius", 24),
         "onBattery": on_battery(),
         "meta": meta,
+        "monitors": monitor_list(),
         "binds": bind_switches(store),
         "bindChords": bind_chords(store),
         "keybinds": keybind_rows(store, live),

@@ -363,6 +363,22 @@ var sections = [
     ]
   },
   {
+    id: "sides", title: "Sides", icon: "\uf0db", group: "sides",
+    subtitle: "The island at the middle of an outer edge, for moving windows between desktops.",
+    cards: [
+      { title: "Placement", rows: [
+        { type: "toggle", key: P + "sides:enabled", label: "Sides island",
+          desc: "Carry a window to the middle of the chosen screen's outer edge and the island opens, one card per desktop. Let go on a card to move the window there." },
+        { type: "sidesLayout", key: P + "sides:layout", label: "Screens", when: "sidesOn",
+          desc: "Each screen's island: None, Left, Right, or Both outer edges. An edge with another screen beside it is not an outer edge, so it is left out." },
+        { type: "slider", key: P + "sides:zone_height", label: "Edge height", min: 80, max: 1600, step: 20, unit: "px", when: "sidesOn",
+          desc: "How much of the middle of the edge opens it." },
+        { type: "slider", key: P + "sides:delay_ms", label: "Rest time", min: 0, max: 1000, step: 20, unit: "ms", when: "sidesOn",
+          desc: "How long the pointer rests on the edge before the island opens. Resting on it is how you reach the desktops; a window carried there opens it at once." }
+      ]}
+    ]
+  },
+  {
     id: "performance", title: "Performance", icon: "", group: "performance",
     subtitle: "Frame pacing, texture quality and power profiles.",
     cards: [
