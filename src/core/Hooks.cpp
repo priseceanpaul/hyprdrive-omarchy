@@ -56,9 +56,12 @@ void setDockCursor(bool on) {
     if (on == g_dockCursor || !Pointer::Cursor::overrideController)
         return;
     g_dockCursor = on;
-    if (on)
+    if (on) {
+        // A border's resize arrow, set before the cancel froze it, would outrank ours.
+        // NixOs-dots docs/manual.md#the-arrow-over-the-dock
+        Pointer::Cursor::overrideController->unsetOverride(Pointer::Cursor::CURSOR_OVERRIDE_WINDOW_EDGE);
         Pointer::Cursor::overrideController->setOverride("left_ptr", Pointer::Cursor::CURSOR_OVERRIDE_UNKNOWN);
-    else
+    } else
         Pointer::Cursor::overrideController->unsetOverride(Pointer::Cursor::CURSOR_OVERRIDE_UNKNOWN);
 }
 
