@@ -1,3 +1,9 @@
+> **This is a modified version of [Hyprdrive](https://github.com/dragosol/hyprdrive-omarchy)
+> by dragosol.** The `nixos` branch carries changes made for one NixOS setup on
+> top of upstream release tags. They are not dragosol's work and are not
+> supported upstream; report problems with them here, not there. Hyprdrive's
+> license and its additional terms (`LICENSE`, `NOTICE.md`) apply unchanged.
+
 # Hyprdrive for Omarchy
 
 A mission-control overview, a full dock with stacks, and Mosaic, a hybrid
