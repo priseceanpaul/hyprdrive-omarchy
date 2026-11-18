@@ -1014,9 +1014,12 @@ class COverview : public IOverview {
     void endTouch(bool tap);
     void openTileMenu(const PHLWINDOW& tile);
     void cancelTouchHold();
+    void onStillTap();
+    void cancelTap();
 
 public:
     void touchHoldFired();
+    void tapFired();
 
 private:
     void onMouseButton(IPointer::SButtonEvent event, Event::SCallbackInfo& info);
@@ -1048,6 +1051,16 @@ private:
         bool     dragging = false; // a synthesized left press is down
         wl_event_source* timer = nullptr;
     } touchTrack;
+
+    // The last still tap, for the double tap. NixOs-dots docs/manual.md#tapping-in-hyprdrive
+    struct {
+        bool                         pending = false;
+        decltype(Time::steadyNow())  at;
+        Vector2D                     pos;
+        PHLWINDOWREF                 tile;
+        bool                         onTile = false;
+        wl_event_source*             timer  = nullptr;
+    } tapTrack;
     CHyprSignalListener             mouseAxisHook;
     CHyprSignalListener             windowOpenHook;
     CHyprSignalListener             windowCloseHook;

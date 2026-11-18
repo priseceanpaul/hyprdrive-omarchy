@@ -265,6 +265,7 @@ void COverview::onTouchMove(ITouch::SMotionEvent e, Event::SCallbackInfo& info) 
                 cancelTouchHold();
             if (!touchTrack.swiping && std::abs(POS.x - touchTrack.start.x) > 24.0 && std::abs(POS.x - touchTrack.start.x) > std::abs(POS.y - touchTrack.start.y)) {
                 onWorkspaceSwipeBegin();
+                cancelTap();
                 touchTrack.swiping = true;
             }
             if (touchTrack.swiping) {
@@ -318,11 +319,13 @@ void COverview::endTouch(bool tap) {
         cancelTouchHold();
         if (touchTrack.dragging) {
             synthButton(BTN_LEFT, false);
+            cancelTap();
             touchTrack = {.timer = touchTrack.timer};
             return;
         }
         if (touchTrack.lifted && tap && !touchTrack.swiping) {
             const auto TILE = windowAtOverviewCursor();
+            cancelTap();
             touchTrack      = {.timer = touchTrack.timer};
             if (!closing && shouldShowOverviewWindow(TILE) && !shouldShowPinnedFloatingOverviewWindow(TILE))
                 openTileMenu(TILE);
@@ -335,7 +338,66 @@ void COverview::endTouch(bool tap) {
         if (SWIPING)
             onWorkspaceSwipeEnd();
         else if (tap)
+            onStillTap();
+}
+
+static int tapCb(void* data) {
+        static_cast<COverview*>(data)->tapFired();
+        return 0;
+}
+
+void COverview::cancelTap() {
+        tapTrack.pending = false;
+        if (tapTrack.timer)
+            wl_event_source_timer_update(tapTrack.timer, 0);
+}
+
+// A still tap: a window tile's menu, a double tap opens or leaves. NixOs-dots docs/manual.md#tapping-in-hyprdrive
+void COverview::onStillTap() {
+        const auto MON = pMonitor.lock();
+        lastMousePosLocal = getOverviewMousePosLocal(MON);
+        const Vector2D P  = lastMousePosLocal;
+        if (Hyprdrive::Dock::menuOpen()) {
+            Hyprdrive::Dock::closeMenu();
+            cancelTap();
+            damage();
+            return;
+        }
+        if (scratchpadCellContains(P) || altCellAt(P) || workspaceAtStripPoint(P)) {
+            cancelTap();
             performPrimaryClickAction();
+            return;
+        }
+        const auto TILE   = windowAtOverviewCursor();
+        const bool ONTILE = shouldShowOverviewWindow(TILE) && !shouldShowPinnedFloatingOverviewWindow(TILE);
+        const bool DOUBLE = tapTrack.pending && tapTrack.onTile == ONTILE && tapTrack.pos.distanceSq(P) <= 1600.0 &&
+            std::chrono::duration<float, std::milli>(Time::steadyNow() - tapTrack.at).count() <= 350.F && (!ONTILE || tapTrack.tile.lock() == TILE);
+        cancelTap();
+        if (DOUBLE) {
+            performPrimaryClickAction();
+            return;
+        }
+        tapTrack.pending = true;
+        tapTrack.at      = Time::steadyNow();
+        tapTrack.pos     = P;
+        tapTrack.onTile  = ONTILE;
+        tapTrack.tile    = ONTILE ? TILE : PHLWINDOW{};
+        if (!ONTILE)
+            return;
+        if (!tapTrack.timer && g_pCompositor)
+            tapTrack.timer = wl_event_loop_add_timer(g_pCompositor->m_wlEventLoop, tapCb, this);
+        if (tapTrack.timer)
+            wl_event_source_timer_update(tapTrack.timer, 350);
+}
+
+// No second tap came: the delayed single tap opens the menu. NixOs-dots docs/manual.md#tapping-in-hyprdrive
+void COverview::tapFired() {
+        const auto TILE = tapTrack.tile.lock();
+        const bool GO   = tapTrack.pending && tapTrack.onTile && !closing && TILE && shouldShowOverviewWindow(TILE) && !shouldShowPinnedFloatingOverviewWindow(TILE);
+        lastMousePosLocal = tapTrack.pos;
+        tapTrack.pending  = false;
+        if (GO)
+            openTileMenu(TILE);
 }
 
 void COverview::onTouchUp(ITouch::SUpEvent e, Event::SCallbackInfo& info) {
