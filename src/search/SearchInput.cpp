@@ -74,6 +74,58 @@ struct SSearchKey {
     std::string text;            // what to append; EMPTY while a compose sequence is mid-flight
 };
 
+// Ctrl+V and Shift+Insert paste the clipboard into the query. wl-paste is a client of its
+// own, so it reads the selection whichever window has focus.
+static bool isPasteKey(uint32_t keycode) {
+    xkb_state* STATE = activeXkbState();
+    if (!STATE)
+        return false;
+    const auto ACTIVE = [&](const char* MOD) { return xkb_state_mod_name_is_active(STATE, MOD, XKB_STATE_MODS_EFFECTIVE) > 0; };
+    if (ACTIVE(XKB_MOD_NAME_LOGO) || ACTIVE(XKB_MOD_NAME_ALT))
+        return false;
+    const xkb_keysym_t SYM = xkb_state_key_get_one_sym(STATE, keycode + 8);
+    if (SYM == XKB_KEY_v || SYM == XKB_KEY_V)
+        return ACTIVE(XKB_MOD_NAME_CTRL);
+    return SYM == XKB_KEY_Insert && ACTIVE(XKB_MOD_NAME_SHIFT) && !ACTIVE(XKB_MOD_NAME_CTRL);
+}
+
+// The clipboard as one line of query text: newlines and tabs become spaces, other control
+// characters go, and the result is capped at a character boundary, as a typed query is.
+static SSearchKey pasteKey() {
+    constexpr size_t READ_CAP  = 4096;
+    constexpr size_t QUERY_CAP = 512;
+    std::string      raw;
+    if (FILE* p = popen("/usr/bin/wl-paste --no-newline --type text/plain 2>/dev/null", "r")) {
+        char buf[512];
+        size_t n = 0;
+        while (raw.size() < READ_CAP && (n = fread(buf, 1, sizeof(buf), p)) > 0)
+            raw.append(buf, n);
+        pclose(p);
+    }
+    std::string text;
+    bool        space = true; // a run of blanks is one space, and none leads
+    for (const unsigned char C : raw) {
+        if (C == '\n' || C == '\r' || C == '\t' || C == ' ') {
+            if (!space) {
+                text += ' ';
+                space = true;
+            }
+        } else if (C >= 0x20 && C != 0x7F) {
+            text += static_cast<char>(C);
+            space = false;
+        }
+    }
+    if (!text.empty() && text.back() == ' ')
+        text.pop_back();
+    if (text.size() > QUERY_CAP) {
+        size_t cut = QUERY_CAP;
+        while (cut > 0 && (static_cast<unsigned char>(text[cut]) & 0xC0) == 0x80)
+            --cut;
+        text.resize(cut);
+    }
+    return {.consume = true, .starts = !text.empty(), .text = std::move(text)};
+}
+
 // What this keycode contributes to the query. Returns nothing whenever a guard
 // modifier is held, so SUPER+Q stays a keybind instead of becoming the letter q.
 static SSearchKey searchKeyFor(uint32_t keycode) {
@@ -261,7 +313,7 @@ bool handleSearchPress(uint32_t keycode) {
         return true;
     }
 
-    const SSearchKey KEY = searchKeyFor(keycode);
+    const SSearchKey KEY = isPasteKey(keycode) ? pasteKey() : searchKeyFor(keycode);
     if (!KEY.consume)
         return false;
 
