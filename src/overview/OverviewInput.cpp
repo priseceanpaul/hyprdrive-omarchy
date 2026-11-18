@@ -926,7 +926,9 @@ void COverview::onKeyboardKey(IKeyboard::SKeyEvent event, Event::SCallbackInfo& 
         // vanishing that the user was not looking at. Asked of HoverTarget,
         // the one answer Super+F gets too: the tile, else the dock preview
         // under the pointer (the dock is drawn over the overview), else none.
-        if ((KEYSYM == XKB_KEY_w || KEYSYM == XKB_KEY_W) && MODS == HL_MODIFIER_META) {
+        // SUPER+Q, Omarchy's own close key, does the same.
+        // NixOs-dots docs/manual.md#super-q-in-the-overview
+        if ((KEYSYM == XKB_KEY_w || KEYSYM == XKB_KEY_W || KEYSYM == XKB_KEY_q || KEYSYM == XKB_KEY_Q) && MODS == HL_MODIFIER_META) {
             const auto target = Hyprdrive::HoverTarget::window();
 
             if (target) {
