@@ -258,7 +258,7 @@ void COverview::renderStripCleanup(PHLMONITOR monitor, float renderScale, float 
         box            = CBox{box.x + box.width * (1 - K) / 2, box.y + box.height * (1 - K) / 2, box.width * K, box.height * K}.round();
     }
 
-    const int RADIUS = sc<int>(std::round(std::min<double>(D::MENU_RADIUS * SCALE, box.height / 2.0)));
+    const int RADIUS = sc<int>(std::round(std::min<double>(D::MENU_RADIUS() * SCALE, box.height / 2.0)));
     D::frostedPlate(monitor, box, RADIUS, A);
 
     if (const float FILL = (PRESSED ? 0.40F : 0.26F) * LIT; FILL > 0.003F) {

@@ -625,7 +625,7 @@ void renderMenuOne(PHLMONITOR monitor, const SLayout& layout, SMenu& M, float OP
     const float SEG_PAD    = std::round(10.F * SCALE);
     const float SEG_GLYPHG = std::round(6.F * SCALE);
     const float SEG_INSETY = std::round(3.F * SCALE);
-    const int   SEG_RADIUS = std::max(0, sc<int>(std::round(MENU_RADIUS * SCALE - SEG_EDGE)));
+    const int   SEG_RADIUS = std::max(0, sc<int>(std::round(MENU_RADIUS() * SCALE - SEG_EDGE)));
     const auto  segContentW = [&](const auto& T, size_t b) {
         const float GW = b < T.segGlyphs.size() && T.segGlyphs[b] && T.segGlyphs[b]->ok() ? sc<float>(T.segGlyphs[b]->m_size.x) + SEG_GLYPHG : 0.F;
         const float LW = b < T.segLabels.size() && T.segLabels[b] && T.segLabels[b]->ok() ? sc<float>(T.segLabels[b]->m_size.x) : 0.F;
@@ -807,7 +807,7 @@ void renderMenuOne(PHLMONITOR monitor, const SLayout& layout, SMenu& M, float OP
     };
 
     // X13/X29/X86: menu frost -- shared chrome sample in overview, live on desktop.
-    frostedPlate(monitor, VIS, sc<int>(std::round(std::min<double>(MENU_RADIUS * SCALE, VISH / 2.0))), 1.F);
+    frostedPlate(monitor, VIS, sc<int>(std::round(std::min<double>(MENU_RADIUS() * SCALE, VISH / 2.0))), 1.F);
 
     const auto MOUSE = (g_pInputManager->getMouseCoordsInternal() - monitor->m_position) * monitor->m_scale;
 
@@ -1069,7 +1069,7 @@ void renderMenuOne(PHLMONITOR monitor, const SLayout& layout, SMenu& M, float OP
             // rounded, stretched past the row on its INNER side and clipped
             // back to it: rounded where it meets the plate's edge, square
             // where it meets the next row.
-            const int  RADIUS = sc<int>(std::round(MENU_RADIUS * SCALE));
+            const int  RADIUS = sc<int>(std::round(MENU_RADIUS() * SCALE));
             const bool FIRST  = i == 0;
             const bool LAST   = i + 1 == M.rows.size();
             CBox       shape  = row.box;
@@ -1163,10 +1163,10 @@ void renderMenuOne(PHLMONITOR monitor, const SLayout& layout, SMenu& M, float OP
         const int                       BORDERSIZE = std::max(1, Hyprdrive::Config::getValue<int>("general:border_size"));
         CBorderPassElement::SBorderData border;
         border.box = VIS;
-        border.grad1.reset(Hyprdrive::Config::highlightColor().modifyA(1.F));
+        border.grad1 = Hyprdrive::Config::themeBorder(1.F);
         border.a             = 1.F;
         border.borderSize    = BORDERSIZE;
-        border.round         = sc<int>(std::round(std::min<double>(MENU_RADIUS * SCALE, VISH / 2.0)));
+        border.round         = sc<int>(std::round(std::min<double>(MENU_RADIUS() * SCALE, VISH / 2.0)));
         border.roundingPower = 2.F;
         if (Stacks::drawableBox(border.box))
             g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(border));

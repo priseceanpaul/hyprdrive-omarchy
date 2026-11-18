@@ -650,9 +650,21 @@ CHyprColor dockBackgroundColor() {
     return colorFromArgb(RGB).modifyA(OPACITY);
 }
 
+// Local patch: the pill follows decoration:rounding like every other theme
+// surface; dock:corner_radius is ignored. docs/manual.md#dock-theming
 int dockCornerRadius() {
-    static auto& VAL = valueRef<Hyprlang::INT>("plugin:hyprdrive:dock:corner_radius");
-    return std::max<int>(0, sc<int>(*VAL));
+    return themeRounding();
+}
+
+::Config::CGradientValueData themeBorder(float alpha) {
+    static auto& ACCENT = valueRef<::Config::IComplexConfigValue>("general:col.active_border");
+    const auto*  G      = gradientPtr(ACCENT);
+    if (!G || G->m_colors.empty())
+        return ::Config::CGradientValueData(highlightColor().modifyA(alpha));
+    auto colors = G->m_colors;
+    for (auto& c : colors)
+        c.a *= alpha;
+    return ::Config::CGradientValueData(std::move(colors), G->m_angle);
 }
 
 }

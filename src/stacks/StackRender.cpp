@@ -222,7 +222,7 @@ namespace Hyprdrive::Stacks {
             const auto FG    = Config::themeForeground();
             const auto MUTED = Config::themeMutedText();
             const auto HEAD  = Config::themeHeading();
-            drawPlate(P.plate, GRID_RADIUS, ALPHA);
+            drawPlate(P.plate, GRID_RADIUS(), ALPHA);
             // The field's frost with the plate's: a backdrop blur has nothing to
             // smear, and inside the blurred pass it would frost an empty buffer.
             Dock::frostedPlate(monitor, P.fieldBox, sc<int>(std::round(8.F * SCALE)), ALPHA * 0.5F);
@@ -243,9 +243,9 @@ namespace Hyprdrive::Stacks {
             {
                 CBorderPassElement::SBorderData border;
                 border.box           = P.plate.copy().round();
-                border.grad1         = ::Config::CGradientValueData(Config::highlightColor().modifyA(ALPHA));
+                border.grad1         = Config::themeBorder(ALPHA);
                 border.borderSize    = std::max(1, Config::getValue<int>("general:border_size"));
-                border.round         = sc<int>(std::round(GRID_RADIUS * SCALE));
+                border.round         = sc<int>(std::round(GRID_RADIUS() * SCALE));
                 border.roundingPower = 2.F;
                 if (drawableBox(border.box))
                     g_pHyprRenderer->addPassElement(makeUnique<CBorderPassElement>(border));

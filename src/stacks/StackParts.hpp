@@ -112,7 +112,8 @@ namespace StacksDetail {
     constexpr float GRID_SPACING = 12.F;
     constexpr float GRID_PAD     = 14.F;
     constexpr float GRID_MAX_ROWS = 3.F;  // past this the panel scrolls
-    constexpr float GRID_RADIUS  = 14.F;
+    // Local patch: decoration:rounding, as the shell's popovers. docs/manual.md#dock-theming
+    inline float    GRID_RADIUS() { return sc<float>(Hyprdrive::Config::themeRounding()); }
     constexpr int   GRID_FONT    = 11;
 
     // THE MOTION, from the user's own GNOME extension (dragosol/dock-stacks,

@@ -237,6 +237,9 @@ float         themeTextScale(); // 1 = Hyprdrive's own sizes; Omarchy's [font] b
 CHyprColor    dockIndicatorColor();
 CHyprColor    dockBackgroundColor();
 int           dockCornerRadius();
+// Local patch: general:col.active_border whole, every colour scaled by alpha --
+// the border the shell's popovers wear. docs/manual.md#dock-theming
+::Config::CGradientValueData themeBorder(float alpha);
 bool          isLightTheme();
 CHyprColor    themeForeground();
 CHyprColor    themeMutedText();

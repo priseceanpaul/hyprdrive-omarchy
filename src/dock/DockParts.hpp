@@ -229,7 +229,8 @@ constexpr float PREVIEW_MAX_ASPECT = 2.20F;
 constexpr float  MENU_FONT      = 13.F;
 constexpr float  MENU_PAD_X     = 14.F;
 constexpr float  MENU_ROW_PAD_Y = 7.F;
-constexpr float  MENU_RADIUS    = 10.F;
+// Local patch: decoration:rounding, as the shell's menus. docs/manual.md#dock-theming
+inline float      MENU_RADIUS() { return sc<float>(Hyprdrive::Config::themeRounding()); }
 constexpr float  MENU_EDGE_MARGIN = 8.F; // logical px the menu keeps from every screen edge
 constexpr float  MENU_GAP       = 8.F;
 constexpr float  MENU_SEP_H     = 9.F;
