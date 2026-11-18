@@ -324,6 +324,7 @@ bool          getStrip();
 int           getStripHeight();
 int           getStripMaxScreenPct();
 bool          getSearchDictionary();
+float         getSearchTextScale();
 bool          getSearchBrowseOnClick();
 bool          getSearchTranslate();
 std::string   getSearchTranslateEndpoint();

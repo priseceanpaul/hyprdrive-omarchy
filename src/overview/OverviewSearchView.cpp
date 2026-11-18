@@ -312,8 +312,10 @@ static SSearchLayout layoutSearch(const SSearchLayoutInputs& IN, const std::vect
         };
     };
 
-    const float HEAD_HL  = 28.F;
-    const float ROW_HL   = 32.F;
+    // Past 1.5x the result text outgrows a 32px row, so the rows grow with it.
+    const float GROW     = std::max(1.F, Hyprdrive::Config::getSearchTextScale() / 1.5F);
+    const float HEAD_HL  = std::round(28.F * GROW);
+    const float ROW_HL   = std::round(32.F * GROW);
     const float ROW_GAPL = 4.F;
 
     const SSearchSection* sectionByCol[4] = {};
@@ -739,6 +741,8 @@ static void drawSearch(const SSearchLayout& L, bool pillLit, bool resultsLit, in
         }
     }
 
+    // The cards' text alone: rows are 32px, so up to 1.5x fits without relayout.
+    const float TS = SCALE * Hyprdrive::Config::getSearchTextScale();
     for (const auto& CARD : L.cards) {
         texFade = FADE * CARD.alpha;
 
@@ -754,7 +758,7 @@ static void drawSearch(const SSearchLayout& L, bool pillLit, bool resultsLit, in
             headIndent += HEAD_ICOND + std::round(8.F * SCALE);
         }
 
-        const int  HEADPX  = std::max(1, sc<int>(std::round(12.F * SCALE)));
+        const int  HEADPX  = std::max(1, sc<int>(std::round(12.F * TS)));
         const auto HEADTEX = OverviewRender::text(CARD.title, Hyprdrive::Config::themeHeading(), HEADPX, false, "", std::max(1, sc<int>(CARD.box.width - headIndent - PADL)), 600);
         if (HEADTEX && HEADTEX->ok()) {
             CBox headText{CARD.box.x + headIndent, CARD.box.y + PADL, sc<float>(HEADTEX->m_size.x), sc<float>(HEADTEX->m_size.y)};
@@ -762,7 +766,7 @@ static void drawSearch(const SSearchLayout& L, bool pillLit, bool resultsLit, in
         }
 
         if (CARD.more > 0) {
-            const int   MOREPX  = std::max(1, sc<int>(std::round(11.F * SCALE)));
+            const int   MOREPX  = std::max(1, sc<int>(std::round(11.F * TS)));
             std::string moreStr = "+" + std::to_string(CARD.more);
             const auto  MORETEX = OverviewRender::text(moreStr, Hyprdrive::Config::themeMutedText(), MOREPX, false, "", 100, 500);
             if (MORETEX && MORETEX->ok()) {
@@ -803,7 +807,7 @@ static void drawSearch(const SSearchLayout& L, bool pillLit, bool resultsLit, in
 
             const float ICOND = std::round(18.F * SCALE);
             if (SearchBackend::isGlyphIcon(ITEM.icon)) {
-                const int         GLYPHPX = std::max(1, sc<int>(std::round(16.F * SCALE)));
+                const int         GLYPHPX = std::max(1, sc<int>(std::round(16.F * TS)));
                 const std::string FAMILY  = ITEM.iconFont.empty() ? "JetBrainsMono Nerd Font" : ITEM.iconFont;
                 const auto        GLYPHTEX =
                     OverviewRender::text(ITEM.icon, ITEM.selected ? Hyprdrive::Config::themeSelectedText() : Hyprdrive::Config::themeForeground(), GLYPHPX, false,
@@ -820,7 +824,7 @@ static void drawSearch(const SSearchLayout& L, bool pillLit, bool resultsLit, in
                 textIndent += ICOND + std::round(8.F * SCALE);
             }
 
-            const int  ROWPX  = std::max(1, sc<int>(std::round(13.F * SCALE)));
+            const int  ROWPX  = std::max(1, sc<int>(std::round(13.F * TS)));
             const auto FG     = ITEM.selected ? Hyprdrive::Config::themeSelectedText() : Hyprdrive::Config::themeForeground();
             const auto ROWTEX = OverviewRender::text(ITEM.name, FG, ROWPX, false, "", std::max(1, sc<int>(ROW.width - textIndent) - sc<int>(ROWPAD)), 500);
             if (ROWTEX && ROWTEX->ok()) {
@@ -834,7 +838,7 @@ static void drawSearch(const SSearchLayout& L, bool pillLit, bool resultsLit, in
                     const int   DESCW = sc<int>((ROW.x + ROW.width - ROWPAD) - DESCX);
                     if (DESCW > sc<int>(std::round(24.F * SCALE))) {
                         const auto DESCFG = ITEM.selected ? FG : Hyprdrive::Config::themeMutedText();
-                        const int  DESCPX = std::max(1, sc<int>(std::round(11.F * SCALE)));
+                        const int  DESCPX = std::max(1, sc<int>(std::round(11.F * TS)));
                         if (const auto DESCTEX = OverviewRender::text(ITEM.description, DESCFG, DESCPX, false, "", DESCW); DESCTEX && DESCTEX->ok()) {
                             CBox descText{DESCX, ROW.y + std::round((ROW.height - sc<float>(DESCTEX->m_size.y)) / 2.F), sc<float>(DESCTEX->m_size.x), sc<float>(DESCTEX->m_size.y)};
                             // Past the grown name, on the same lift.
@@ -846,7 +850,7 @@ static void drawSearch(const SSearchLayout& L, bool pillLit, bool resultsLit, in
         }
 
         if (CARD.items.empty()) {
-            const int  EMPTYPX  = std::max(1, sc<int>(std::round(12.F * SCALE)));
+            const int  EMPTYPX  = std::max(1, sc<int>(std::round(12.F * TS)));
             const auto EMPTYTEX = OverviewRender::text(CARD.emptyHint.empty() ? "No items" : CARD.emptyHint, Hyprdrive::Config::themeMutedText(), EMPTYPX, false, "", sc<int>(CARD.box.width - PADL * 2.F), 400);
             if (EMPTYTEX && EMPTYTEX->ok()) {
                 CBox emptyBox{CARD.box.x + PADL, CARD.box.y + PADL + std::round(30.F * SCALE), sc<float>(EMPTYTEX->m_size.x), sc<float>(EMPTYTEX->m_size.y)};

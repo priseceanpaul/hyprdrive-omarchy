@@ -101,6 +101,8 @@ static void registerConfigValuesFor() {
     // The overview search's dictionary and translator (user, 2026-09-22). OFF by
     // default: they send what is typed to a third-party service, and a
     // compositor plugin must not start doing that on its own.
+    addKey(makeShared<CFloatValue>(KEY("search:text_scale"), "overview search: size of the result text, as a multiple of the original", 1.5F,
+                                   SFloatValueOptions{.min = 0.8F, .max = 2.F}));
     addKey(makeShared<CBoolValue>(KEY("search:dictionary"), "`define <word>` in the overview search looks the word up on Wiktionary (sends the word to en.wiktionary.org)", false));
     // MOSAIC (Mosaic.hpp). The layout itself is always registered; these two are
     // the panel's: enabled puts it on Super+L's cycle, default makes it the
@@ -716,6 +718,11 @@ bool getSearchDictionary() {
 bool getSearchBrowseOnClick() {
     static auto& VAL = valueRef<Hyprlang::INT>("plugin:hyprdrive:search:browse_on_click");
     return *VAL != 0;
+}
+
+float getSearchTextScale() {
+    static auto& VAL = valueRef<Hyprlang::FLOAT>("plugin:hyprdrive:search:text_scale");
+    return std::clamp(sc<float>(*VAL), 0.8F, 2.F);
 }
 
 bool getSearchTranslate() {
