@@ -225,6 +225,13 @@ KEY_META = [
         _k(PLUGIN + "motion_blur:%s:fade" % name, "enum", "blur", fade, options=FADES),
     )
 ] + [
+    # Crystal (docs/manual.md#crystal-windows in the NixOS dots)
+    _k(PLUGIN + "crystal_cell", "float", "crystal", 220.0, min=40, max=600),
+    _k(PLUGIN + "crystal_shift", "float", "crystal", 1.0, min=0, max=2),
+    _k(PLUGIN + "crystal_milk", "float", "crystal", 1.0, min=0, max=3),
+    _k(PLUGIN + "crystal_edge", "float", "crystal", 1.0, min=0, max=3),
+    _k(PLUGIN + "crystal_tint", "float", "crystal", 0.05, min=0, max=1),
+    _k(PLUGIN + "crystal_backdrop_dim", "float", "crystal", 0.3, min=0, max=0.9),
     # Performance
     _k(PLUGIN + "smooth_frames", "bool", "performance", False),
     _k(PLUGIN + "live_layer_frost", "bool", "performance", True),

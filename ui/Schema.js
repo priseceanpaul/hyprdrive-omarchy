@@ -302,6 +302,28 @@ var sections = [
     ]
   },
   {
+    id: "crystal", title: "Crystal", icon: "\uf219", group: "crystal",
+    subtitle: "The cut glass on windows, menus and the dock, while True Glass is on.",
+    cards: [
+      { title: "Shards", rows: [
+        { type: "slider", key: P + "crystal_cell", label: "Shard size", min: 40, max: 600, step: 10, unit: "px",
+          desc: "How large each shard of the glass is. Applies to windows and Omarchy's menus as well as Hyprdrive." },
+        { type: "slider", key: P + "crystal_shift", label: "Shard bend", min: 0, max: 2, step: 0.05, fmt: "percent",
+          desc: "How far each shard shifts what is behind it. 0 leaves the glass uncut." },
+        { type: "slider", key: P + "crystal_milk", label: "Shard milk", min: 0, max: 3, step: 0.05, fmt: "percent",
+          desc: "How milky the shards are, each by its own amount." },
+        { type: "slider", key: P + "crystal_edge", label: "Shard edges", min: 0, max: 3, step: 0.05, fmt: "percent",
+          desc: "The thin line of light where two shards meet." }
+      ]},
+      { title: "Hyprdrive", rows: [
+        { type: "slider", key: P + "crystal_tint", label: "Panel tint", min: 0, max: 1, step: 0.01, fmt: "percent",
+          desc: "The theme colour over the dock, the app drawer and menus. True Glass keys Omarchy's menus down to 3%." },
+        { type: "slider", key: P + "crystal_backdrop_dim", label: "Overview darkening", min: 0, max: 0.9, step: 0.01, fmt: "percent",
+          desc: "How much the overview darkens the wallpaper behind its cards." }
+      ]}
+    ]
+  },
+  {
     id: "performance", title: "Performance", icon: "", group: "performance",
     subtitle: "Frame pacing, texture quality and power profiles.",
     cards: [
