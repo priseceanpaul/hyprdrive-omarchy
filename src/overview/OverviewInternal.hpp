@@ -747,6 +747,31 @@ inline std::vector<SSearchRow> overviewSearchRowsLive() {
         }
     }
 
+    // nixos-dots: the web search leads the AI & Tools column.
+    if (!Q.empty() && !MENU_BROWSE && !SearchBackend::isAgentQuery(Q)) {
+        SearchBackend::SSearchItem webItem;
+        webItem.kind          = SearchBackend::EItemKind::Action;
+        webItem.id            = "web:google";
+        webItem.name          = "Search Google";
+        webItem.description   = Q;
+        webItem.icon          = "web-browser";
+        webItem.category      = "Web";
+        std::string qenc;
+        for (unsigned char c : Q) {
+            if (std::isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~')
+                qenc += static_cast<char>(c);
+            else if (c == ' ')
+                qenc += '+';
+            else {
+                char buf[8];
+                std::snprintf(buf, sizeof(buf), "%%%02X", c);
+                qenc += buf;
+            }
+        }
+        webItem.actionCommand = "xdg-open 'https://www.google.com/search?q=" + qenc + "'";
+        rows.push_back({webItem.name, webItem.description, webItem.icon, "", nullptr, {}, webItem, 2});
+    }
+
     if (SearchBackend::isAgentQuery(Q)) {
         for (const auto& item : SearchBackend::searchAgents(Q))
             rows.push_back({item.name, item.description, item.icon, item.iconFont, nullptr, {}, item, 2});
@@ -772,27 +797,6 @@ inline std::vector<SSearchRow> overviewSearchRowsLive() {
         if (ToolSearch::enabled(ToolSearch::EKind::Translate))
             toolRow("tool:translate", "Translate", "preferences-desktop-locale", "translate " + Q);
 
-        SearchBackend::SSearchItem webItem;
-        webItem.kind          = SearchBackend::EItemKind::Action;
-        webItem.id            = "web:google";
-        webItem.name          = "Search Google";
-        webItem.description   = Q;
-        webItem.icon          = "web-browser";
-        webItem.category      = "Web";
-        std::string qenc;
-        for (unsigned char c : Q) {
-            if (std::isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~')
-                qenc += static_cast<char>(c);
-            else if (c == ' ')
-                qenc += '+';
-            else {
-                char buf[8];
-                std::snprintf(buf, sizeof(buf), "%%%02X", c);
-                qenc += buf;
-            }
-        }
-        webItem.actionCommand = "xdg-open 'https://www.google.com/search?q=" + qenc + "'";
-        rows.push_back({webItem.name, webItem.description, webItem.icon, "", nullptr, {}, webItem, 2});
     } else if (!MENU_BROWSE) {
         for (const auto& item : SearchBackend::agentHelpItems())
             rows.push_back({item.name, item.description, item.icon, item.iconFont, nullptr, {}, item, 2});
