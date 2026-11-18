@@ -149,8 +149,10 @@ static CHyprSignalListener g_pDockRenderHook;
 // the layer's surfaces. docs/manual.md#the-islands-crystal
 static CFunctionHook* g_pIslandBlurHook = nullptr;
 static bool           g_islandPlated    = false; // (renderLayer asks again for the layer's popups, above it)
+// The sides island's plate, the same way: its own flag, so the notch and the sides both get one. docs/manual.md#the-hyprdrive-sides
+static bool           g_sidesPlated[2]  = {false, false}; // [left, right]
 
-static void queueIslandCrystal(const PHLLS& ls) {
+static void queueIslandCrystal(const PHLLS& ls, bool sides) {
     const auto MONITOR = g_pHyprRenderer->m_renderData.pMonitor.lock();
     const auto WL      = ls->wlSurface();
     const auto SURFACE = WL ? WL->resource() : nullptr;
@@ -161,10 +163,20 @@ static void queueIslandCrystal(const PHLLS& ls) {
     const auto SIZE  = ls->size(Desktop::View::IGeometric::GEOMETRIC_CURRENT);
     if (NOTCH.w < 1 || NOTCH.h < 1 || NOTCH.w >= SIZE.x)
         return;
-    // As Island.qml's body.radius: 18 on a peek (at most 62 tall), 22 open
     const double SIZING = Hyprdrive::Config::getValue<float>("plugin:hyprdrive:island:scale");
-    const double RADIUS = std::min({std::round((NOTCH.h > 62.0 * SIZING ? 22.0 : 18.0) * SIZING), NOTCH.h / 2.0, NOTCH.w / 2.0}) * MONITOR->m_scale;
     const auto   POS    = ls->position(Desktop::View::IGeometric::GEOMETRIC_CURRENT) - MONITOR->m_position;
+    if (sides) {
+        // The sides notch: its depth from the edge is the width, so open is the wide one. As Sides.qml's radius.
+        const double RADIUS = std::min({std::round((NOTCH.w > 62.0 * SIZING ? 22.0 : 18.0) * SIZING), NOTCH.w / 2.0, NOTCH.h / 2.0}) * MONITOR->m_scale;
+        const bool   RIGHT  = ls->m_namespace == "omarchy-hyprdrive-sides-right";
+        // Its outer side is the screen's edge, so the plate runs off it, as the top notch's does off the top.
+        const double X      = (POS.x + NOTCH.x) * MONITOR->m_scale - (RIGHT ? 0.0 : RADIUS);
+        const CBox   PLATE{X, (POS.y + NOTCH.y) * MONITOR->m_scale, NOTCH.w * MONITOR->m_scale + RADIUS, NOTCH.h * MONITOR->m_scale};
+        Hyprdrive::Crystal::queue(PLATE, sc<int>(std::round(RADIUS)), ls->alpha()[Desktop::View::LS_ALPHA_FADE]->value());
+        return;
+    }
+    // As Island.qml's body.radius: 18 on a peek (at most 62 tall), 22 open
+    const double RADIUS = std::min({std::round((NOTCH.h > 62.0 * SIZING ? 22.0 : 18.0) * SIZING), NOTCH.h / 2.0, NOTCH.w / 2.0}) * MONITOR->m_scale;
     // Its top corners run off screen, as the island-style dock's bottom ones do
     const CBox   PLATE{(POS.x + NOTCH.x) * MONITOR->m_scale, (POS.y + NOTCH.y) * MONITOR->m_scale - RADIUS, NOTCH.w * MONITOR->m_scale, NOTCH.h * MONITOR->m_scale + RADIUS};
     Hyprdrive::Crystal::queue(PLATE, sc<int>(std::round(RADIUS)), ls->alpha()[Desktop::View::LS_ALPHA_FADE]->value());
@@ -172,11 +184,14 @@ static void queueIslandCrystal(const PHLLS& ls) {
 
 static bool hkShouldBlurLayer(void* thisptr, PHLLS ls) {
     using origShouldBlur = bool (*)(void*, PHLLS);
-    if (!ls || ls->m_namespace != "omarchy-hyprdrive-island" || !Hyprdrive::Crystal::enabled() || g_pHyprRenderer->m_bRenderingSnapshot)
+    const bool ISLAND = ls && ls->m_namespace == "omarchy-hyprdrive-island";
+    const bool SIDES  = ls && ls->m_namespace.starts_with("omarchy-hyprdrive-sides");
+    if (!ls || (!ISLAND && !SIDES) || !Hyprdrive::Crystal::enabled() || g_pHyprRenderer->m_bRenderingSnapshot)
         return rc<origShouldBlur>(g_pIslandBlurHook->m_original)(thisptr, ls);
-    if (!g_islandPlated) {
-        g_islandPlated = true;
-        queueIslandCrystal(ls);
+    bool& PLATED = SIDES ? g_sidesPlated[ls->m_namespace == "omarchy-hyprdrive-sides-right"] : g_islandPlated;
+    if (!PLATED) {
+        PLATED = true;
+        queueIslandCrystal(ls, SIDES);
     }
     return false;
 }
@@ -670,6 +685,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
             return;
 
         g_islandPlated = false; // (the top layer comes next)
+        g_sidesPlated[0] = g_sidesPlated[1] = false;
 
         const auto MONITOR = g_pHyprRenderer->m_renderData.pMonitor.lock();
         if (scrollOverviewForMonitor(MONITOR))
