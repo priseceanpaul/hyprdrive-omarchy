@@ -411,6 +411,8 @@ Item {
     case "dockMenuAnimOn": return kb("plugin:hyprdrive:dock:menu_animation") && kn("plugin:hyprdrive:anim_scale") > 0.001
     case "blurOn": return kb("plugin:hyprdrive:motion_blur:enabled")
     case "mosaicOn": return kb("plugin:hyprdrive:mosaic:enabled")
+    case "islandOn": return kb("plugin:hyprdrive:island:enabled")
+    case "slideOn": return !kb("plugin:hyprdrive:dock:grow")
     case "canvasOn": return kb("plugin:hyprdrive:mosaic:enabled") && kb("plugin:hyprdrive:mosaic:infinite_canvas")
     case "edgePushOn": return kb("plugin:hyprdrive:mosaic:enabled") && kb("plugin:hyprdrive:mosaic:infinite_canvas") && kb("plugin:hyprdrive:mosaic:edge_push")
     case "canvasMotionOn": return kb("plugin:hyprdrive:mosaic:enabled") && kb("plugin:hyprdrive:mosaic:infinite_canvas") && kn("plugin:hyprdrive:anim_scale") > 0.001
@@ -1342,7 +1344,7 @@ Item {
     property var row: ({})
     property bool first: false
     readonly property bool live: root.rowEnabled(row)
-    readonly property bool wide: row.type === "gestures" || row.type === "power" || row.type === "curve" || row.type === "icons"
+    readonly property bool wide: row.type === "gestures" || row.type === "power" || row.type === "curve" || row.type === "icons" || row.type === "islandPlugins"
     width: parent ? parent.width : 0
     implicitHeight: wide ? wideCol.implicitHeight + Style.space(24) : Math.max(labelCol.implicitHeight, controlHolder.implicitHeight) + Style.space(26)
 
@@ -1438,9 +1440,72 @@ Item {
       Loader {
         width: parent.width
         active: sr.wide
-        sourceComponent: sr.row.type === "curve" ? curveControl : sr.row.type === "gestures" ? gestureEditor : sr.row.type === "power" ? powerControl : sr.row.type === "icons" ? iconEditor : null
+        sourceComponent: sr.row.type === "curve" ? curveControl : sr.row.type === "gestures" ? gestureEditor : sr.row.type === "power" ? powerControl : sr.row.type === "icons" ? iconEditor : sr.row.type === "islandPlugins" ? islandPluginsEditor : null
         property var row: sr.row
         property bool live: sr.live
+      }
+    }
+  }
+
+  // The island's plugins (NixOS dots, docs/manual.md#plugins-from-the-island):
+  // the island lists them in IslandHost; a switch each, the off ones in island:hidden.
+  Component {
+    id: islandPluginsEditor
+    Column {
+      id: ipe
+      property var row: parent ? parent.row : ({})
+      readonly property var hidden: String(root.k("plugin:hyprdrive:island:hidden", "") || "").split(",").filter(function(s) { return s !== "" })
+      width: parent ? parent.width : 0
+      spacing: Style.space(2)
+      Text {
+        visible: IslandHost.plugins.length === 0
+        width: parent.width
+        text: "Open the island once and your plugins are listed here."
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+      }
+      Repeater {
+        model: IslandHost.plugins
+        Item {
+          required property var modelData
+          width: ipe.width
+          height: Style.space(36)
+          Text {
+            id: ipeIcon
+            anchors.verticalCenter: parent.verticalCenter
+            width: Style.space(28)
+            horizontalAlignment: Text.AlignHCenter
+            text: parent.modelData.icon
+            color: root.fg
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.body
+          }
+          Text {
+            anchors.left: ipeIcon.right
+            anchors.leftMargin: Style.space(8)
+            anchors.right: ipeSwitch.left
+            anchors.verticalCenter: parent.verticalCenter
+            text: parent.modelData.name
+            color: root.fg
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.body
+            elide: Text.ElideRight
+          }
+          Switch {
+            id: ipeSwitch
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            checked: ipe.hidden.indexOf(parent.modelData.id) === -1
+            live: ipe.parent ? ipe.parent.live : true
+            onToggled: {
+              var h = ipe.hidden.slice(), id = parent.modelData.id, at = h.indexOf(id)
+              if (at === -1) h.push(id)
+              else h.splice(at, 1)
+              root.setKey("plugin:hyprdrive:island:hidden", h.join(","))
+            }
+          }
+        }
       }
     }
   }

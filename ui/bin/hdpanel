@@ -161,6 +161,8 @@ KEY_META = [
     # Dock
     _k(PLUGIN + "dock:enabled", "bool", "dock", True),
     _k(PLUGIN + "dock:autohide", "bool", "dock", True),
+    _k(PLUGIN + "dock:grow", "bool", "dock", True),
+    _k(PLUGIN + "dock:island_style", "bool", "dock", False),
     _k(PLUGIN + "dock:hide_over_fullscreen", "bool", "dock", False),
     _k(PLUGIN + "dock:hide_over_games", "bool", "dock", True),
     _k(PLUGIN + "dock:windows_make_room", "bool", "dock", True),
@@ -232,6 +234,21 @@ KEY_META = [
     _k(PLUGIN + "crystal_edge", "float", "crystal", 1.0, min=0, max=3),
     _k(PLUGIN + "crystal_tint", "float", "crystal", 0.05, min=0, max=1),
     _k(PLUGIN + "crystal_backdrop_dim", "float", "crystal", 0.3, min=0, max=0.9),
+    # Island (docs/manual.md#the-hyprdrive-island in the NixOS dots)
+    _k(PLUGIN + "island:enabled", "bool", "island", True),
+    _k(PLUGIN + "island:delay_ms", "int", "island", 120, min=0, max=1000),
+    _k(PLUGIN + "island:zone_width", "int", "island", 360, min=80, max=1600),
+    _k(PLUGIN + "island:peek", "bool", "island", True),
+    _k(PLUGIN + "island:media", "bool", "island", True),
+    _k(PLUGIN + "island:calendar", "bool", "island", True),
+    _k(PLUGIN + "island:clock_24h", "bool", "island", True),
+    _k(PLUGIN + "island:plugins", "bool", "island", True),
+    _k(PLUGIN + "island:hidden", "str", "island", ""),
+    _k(PLUGIN + "island:order", "str", "island", ""),
+    _k(PLUGIN + "island:plugin_order", "str", "island", ""),
+    _k(PLUGIN + "island:border", "bool", "island", False),
+    _k(PLUGIN + "island:scale", "float", "island", 1.0, min=0.8, max=1.5),
+    _k(PLUGIN + "island:speed", "float", "island", 1.0, min=0.25, max=4),
     # Performance
     _k(PLUGIN + "smooth_frames", "bool", "performance", False),
     _k(PLUGIN + "live_layer_frost", "bool", "performance", True),
@@ -262,7 +279,7 @@ KEY_META = [
 # Groups a power profile neither saves nor applies. Mosaic rebinds Super+L and
 # can change the default layout; plugging in the charger must not do either.
 # The Keybinds section's switches all rebind keys.
-PROFILE_SKIP = {"mosaic", "keybinds"}
+PROFILE_SKIP = {"mosaic", "keybinds", "island"}
 
 SCROLL_ON = PLUGIN + "binds:scroll_desktops"
 SCROLL_MODS_KEY = PLUGIN + "binds:scroll_desktops_mods"

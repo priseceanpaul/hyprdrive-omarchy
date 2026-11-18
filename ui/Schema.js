@@ -127,6 +127,10 @@ var sections = [
         { type: "toggle", key: P + "dock:enabled", label: "Show the dock" },
         { type: "toggle", key: P + "dock:autohide", label: "Autohide", when: "dockOn",
           desc: "Stay out of sight until the pointer presses the bottom edge." },
+        { type: "toggle", key: P + "dock:grow", label: "Grow from the edge", when: "dockOn",
+          desc: "Appear the way the island does: grow out of the bottom edge on its spring, instead of sliding up. Its speed is the island's Grow speed." },
+        { type: "toggle", key: P + "dock:island_style", label: "Island style", when: "dockOn",
+          desc: "Sit on the bottom edge the way the island hangs from the top: rounded above, flush below, curving into the edge at both ends." },
         { type: "toggle", key: P + "dock:hide_over_fullscreen", label: "Hide dock over all fullscreen windows", when: "dockOn",
           desc: "The dock stays away while any fullscreen window is on screen: a game, a video, the screensaver. To keep it away from one app only, check Hide Dock in Fullscreen in that app's Get Info." },
         { type: "toggle", key: P + "dock:hide_over_games", label: "Keep it away from games and the screensaver", when: "fsDockGames",
@@ -231,7 +235,8 @@ var sections = [
         { type: "slider", key: P + "open_speed", label: "Overview open", min: 0.5, max: 8, step: 0.1, fmt: "deciseconds" },
         { type: "slider", key: P + "close_speed", label: "Overview close", min: 0.5, max: 8, step: 0.1, fmt: "deciseconds" },
         { type: "slider", key: P + "dock:minimize_ms", label: "Minimize flight", min: 0, max: 1200, step: 10, unit: "ms" },
-        { type: "slider", key: P + "dock:autohide_ms", label: "Dock autohide slide", min: 0, max: 800, step: 10, unit: "ms" },
+        { type: "slider", key: P + "dock:autohide_ms", label: "Dock autohide slide", min: 0, max: 800, step: 10, unit: "ms", when: "slideOn",
+          desc: "Only while the dock slides; growing follows the island's Grow speed." },
         { type: "slider", key: P + "mission_control_reflow_ms", label: "Grid reflow", min: 0, max: 1000, step: 10, unit: "ms",
           desc: "Tiles gliding to new slots as a search filters them." }
       ]},
@@ -320,6 +325,40 @@ var sections = [
           desc: "The theme colour over the dock, the app drawer and menus. True Glass keys Omarchy's menus down to 3%." },
         { type: "slider", key: P + "crystal_backdrop_dim", label: "Overview darkening", min: 0, max: 0.9, step: 0.01, fmt: "percent",
           desc: "How much the overview darkens the wallpaper behind its cards." }
+      ]}
+    ]
+  },
+  {
+    id: "island", title: "Island", icon: "\uf10b", group: "island",
+    subtitle: "The notch that drops from the top of the screen.",
+    cards: [
+      { title: "Opening", rows: [
+        { type: "toggle", key: P + "island:enabled", label: "Island",
+          desc: "Rest the pointer on the middle of the top edge and the island opens. Moving away closes it. Never over a fullscreen window." },
+        { type: "slider", key: P + "island:delay_ms", label: "Rest time", min: 0, max: 1000, step: 20, unit: "ms", when: "islandOn",
+          desc: "How long the pointer rests on the edge before the island opens." },
+        { type: "slider", key: P + "island:zone_width", label: "Edge width", min: 80, max: 1600, step: 20, unit: "px", when: "islandOn",
+          desc: "How much of the middle of the top edge opens it." },
+        { type: "toggle", key: P + "island:peek", label: "Peek on its own", when: "islandOn",
+          desc: "It peeks out for a moment when the track changes, the volume changes or the microphone goes live." }
+      ]},
+      { title: "Contents", rows: [
+        { type: "toggle", key: P + "island:media", label: "Now playing", when: "islandOn",
+          desc: "Cover art, the track and the player's controls." },
+        { type: "toggle", key: P + "island:calendar", label: "Calendar", when: "islandOn",
+          desc: "This month beside the clock. Scroll it to move a month." },
+        { type: "toggle", key: P + "island:clock_24h", label: "24-hour clock", when: "islandOn" },
+        { type: "toggle", key: P + "island:border", label: "Border", when: "islandOn",
+          desc: "Outline the island, ears and all, in the theme's border colour; the dock too while it is in Island style." },
+        { type: "toggle", key: P + "island:plugins", label: "Plugin panels", when: "islandOn",
+          desc: "A row of your plugins' panels. Click one to open or close it; scroll over the row to step through them." },
+        { type: "slider", key: P + "island:scale", label: "Size", min: 0.8, max: 1.5, step: 0.05, fmt: "percent", when: "islandOn" },
+        { type: "slider", key: P + "island:speed", label: "Grow speed", min: 0.25, max: 4, step: 0.05, fmt: "percent",
+          desc: "How fast it grows and shrinks, on its spring. The dock grows on the same spring." }
+      ]},
+      { title: "Plugins", rows: [
+        { type: "islandPlugins", key: P + "island:hidden", label: "Plugins on the island", when: "islandOn",
+          desc: "Which of your plugins have an icon in the island. Open the island once and they are listed here." }
       ]}
     ]
   },
