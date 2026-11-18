@@ -393,6 +393,18 @@ static void registerConfigValuesFor() {
     addKey(makeShared<CIntValue>(KEY("hot_corner:delay_ms"), "how long the pointer rests in the hot corner before the overview opens", 150,
                                  SIntValueOptions{.min = 0, .max = 2000}));
     addKey(makeShared<CBoolValue>(KEY("hot_corner:ripple"), "the hot corner sends a ripple across the screen from the corner, bending what is under it", true));
+    // Touch tuning (NixOs-dots docs/manual.md#holding-in-hyprdrive).
+    addKey(makeShared<CBoolValue>(KEY("touch:dock"), "the dock takes touches on it and turns them into clicks; off leaves them to the compositor", true));
+    addKey(makeShared<CIntValue>(KEY("touch:hold_ms"), "how long a finger rests on a dock icon or a window tile before it right-clicks or lifts", 500,
+                                 SIntValueOptions{.min = 200, .max = 1500}));
+    addKey(makeShared<CIntValue>(KEY("touch:slop"), "pixels a finger may move and still count as a tap or a hold", 12, SIntValueOptions{.min = 4, .max = 60}));
+    addKey(makeShared<CIntValue>(KEY("touch:swipe_threshold"), "pixels sideways before a drag in the overview becomes a desktop swipe", 24,
+                                 SIntValueOptions{.min = 8, .max = 120}));
+    addKey(makeShared<CBoolValue>(KEY("touch:tile_hold"), "holding a window tile in the overview lifts it", true));
+    addKey(makeShared<CBoolValue>(KEY("touch:tap_menu"), "a tap on a window tile opens its menu; off, a tap opens the window", true));
+    addKey(makeShared<CBoolValue>(KEY("touch:double_tap_exit"), "empty space in the overview needs a double tap to leave; off, one tap leaves", true));
+    addKey(makeShared<CIntValue>(KEY("touch:double_tap_ms"), "the time within which a second tap makes a double tap", 350, SIntValueOptions{.min = 150, .max = 800}));
+    addKey(makeShared<CIntValue>(KEY("touch:double_tap_px"), "how close a second tap must land to make a double tap, in pixels", 40, SIntValueOptions{.min = 10, .max = 150}));
     // The island (NixOS dots, docs/manual.md#the-hyprdrive-island): the zone here,
     // the rest read by the shell's island from hdpanel's store.
     addKey(makeShared<CBoolValue>(KEY("island:enabled"), "resting the pointer on the middle of the top edge opens the island", true));

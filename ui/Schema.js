@@ -367,6 +367,36 @@ var sections = [
     ]
   },
   {
+    id: "touch", title: "Touch", icon: "\uf256", group: "touch",
+    subtitle: "Taps, holds and swipes from a touchscreen, such as a phone streaming this desktop.",
+    cards: [
+      { title: "Dock", rows: [
+        { type: "toggle", key: P + "touch:dock", label: "Touch on the dock",
+          desc: "A tap on the dock is a click and a hold is a right click. Off, the dock ignores touch." }
+      ]},
+      { title: "Holding and moving", rows: [
+        { type: "slider", key: P + "touch:hold_ms", label: "Hold time", min: 200, max: 1500, step: 50, unit: "ms",
+          desc: "How long a finger must rest on a dock icon or a window before it acts like a right click or lifts the window." },
+        { type: "slider", key: P + "touch:slop", label: "Finger wobble", min: 4, max: 60, step: 2, unit: "px",
+          desc: "How far a finger may drift and still count as a tap or a hold. Raise it if taps and holds keep getting cancelled." },
+        { type: "slider", key: P + "touch:swipe_threshold", label: "Swipe distance", min: 8, max: 120, step: 4, unit: "px",
+          desc: "How far you drag sideways in the overview before it starts swiping between desktops." },
+        { type: "toggle", key: P + "touch:tile_hold", label: "Hold a window to lift it",
+          desc: "Rest a finger on a window in the overview to lift it: let go for its menu, or drag to move it. Off, a hold does nothing." }
+      ]},
+      { title: "Tapping", rows: [
+        { type: "toggle", key: P + "touch:tap_menu", label: "Tap a window for its menu",
+          desc: "A single tap on a window in the overview opens its menu, and a double tap opens the window. Off, a single tap opens the window at once." },
+        { type: "toggle", key: P + "touch:double_tap_exit", label: "Double tap to leave",
+          desc: "Empty space in the overview needs a double tap to leave it. Off, one tap leaves." },
+        { type: "slider", key: P + "touch:double_tap_ms", label: "Double tap time", min: 150, max: 800, step: 50, unit: "ms",
+          desc: "How quickly the second tap must follow the first." },
+        { type: "slider", key: P + "touch:double_tap_px", label: "Double tap reach", min: 10, max: 150, step: 5, unit: "px",
+          desc: "How close the second tap must land to the first." }
+      ]}
+    ]
+  },
+  {
     id: "sides", title: "Sides", icon: "\uf0db", group: "sides",
     subtitle: "The island at the middle of an outer edge, for moving windows between desktops.",
     cards: [

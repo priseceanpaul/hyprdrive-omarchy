@@ -260,10 +260,11 @@ void COverview::onTouchMove(ITouch::SMotionEvent e, Event::SCallbackInfo& info) 
             }
             const Vector2D POS  = getOverviewMousePosLocal(PMONITOR);
             const Vector2D STEP = POS - touchTrack.last;
+            const double   SLOP = Hyprdrive::Config::getValue<int>("plugin:hyprdrive:touch:slop");
             touchTrack.last     = POS;
-            if (POS.distanceSq(touchTrack.start) > 144.0)
+            if (POS.distanceSq(touchTrack.start) > SLOP * SLOP)
                 cancelTouchHold();
-            if (!touchTrack.swiping && std::abs(POS.x - touchTrack.start.x) > 24.0 && std::abs(POS.x - touchTrack.start.x) > std::abs(POS.y - touchTrack.start.y)) {
+            if (!touchTrack.swiping && std::abs(POS.x - touchTrack.start.x) > Hyprdrive::Config::getValue<int>("plugin:hyprdrive:touch:swipe_threshold") && std::abs(POS.x - touchTrack.start.x) > std::abs(POS.y - touchTrack.start.y)) {
                 onWorkspaceSwipeBegin();
                 cancelTap();
                 touchTrack.swiping = true;
@@ -370,10 +371,17 @@ void COverview::onStillTap() {
         }
         const auto TILE   = windowAtOverviewCursor();
         const bool ONTILE = shouldShowOverviewWindow(TILE) && !shouldShowPinnedFloatingOverviewWindow(TILE);
-        const bool DOUBLE = tapTrack.pending && tapTrack.onTile == ONTILE && tapTrack.pos.distanceSq(P) <= 1600.0 &&
-            std::chrono::duration<float, std::milli>(Time::steadyNow() - tapTrack.at).count() <= 350.F && (!ONTILE || tapTrack.tile.lock() == TILE);
+        const double DPX  = Hyprdrive::Config::getValue<int>("plugin:hyprdrive:touch:double_tap_px");
+        const float  DMS  = Hyprdrive::Config::getValue<int>("plugin:hyprdrive:touch:double_tap_ms");
+        const bool DOUBLE = tapTrack.pending && tapTrack.onTile == ONTILE && tapTrack.pos.distanceSq(P) <= DPX * DPX &&
+            std::chrono::duration<float, std::milli>(Time::steadyNow() - tapTrack.at).count() <= DMS && (!ONTILE || tapTrack.tile.lock() == TILE);
         cancelTap();
         if (DOUBLE) {
+            performPrimaryClickAction();
+            return;
+        }
+        // A single tap acts at once when its menu or double tap is off. NixOs-dots docs/manual.md#tapping-in-hyprdrive
+        if (ONTILE ? !Hyprdrive::Config::getValue<bool>("plugin:hyprdrive:touch:tap_menu") : !Hyprdrive::Config::getValue<bool>("plugin:hyprdrive:touch:double_tap_exit")) {
             performPrimaryClickAction();
             return;
         }
@@ -387,7 +395,7 @@ void COverview::onStillTap() {
         if (!tapTrack.timer && g_pCompositor)
             tapTrack.timer = wl_event_loop_add_timer(g_pCompositor->m_wlEventLoop, tapCb, this);
         if (tapTrack.timer)
-            wl_event_source_timer_update(tapTrack.timer, 350);
+            wl_event_source_timer_update(tapTrack.timer, Hyprdrive::Config::getValue<int>("plugin:hyprdrive:touch:double_tap_ms"));
 }
 
 // No second tap came: the delayed single tap opens the menu. NixOs-dots docs/manual.md#tapping-in-hyprdrive
@@ -875,11 +883,11 @@ void COverview::onCursorSelect(ITouch::SDownEvent e, Event::SCallbackInfo& info)
             return;
         touchTrack = {true, e.touchID, getOverviewMousePosLocal(pMonitor.lock()), getOverviewMousePosLocal(pMonitor.lock()), false, false, false, touchTrack.timer};
         const auto TILE = windowAtOverviewCursor();
-        if (shouldShowOverviewWindow(TILE) && !shouldShowPinnedFloatingOverviewWindow(TILE)) {
+        if (Hyprdrive::Config::getValue<bool>("plugin:hyprdrive:touch:tile_hold") && shouldShowOverviewWindow(TILE) && !shouldShowPinnedFloatingOverviewWindow(TILE)) {
             if (!touchTrack.timer && g_pCompositor)
                 touchTrack.timer = wl_event_loop_add_timer(g_pCompositor->m_wlEventLoop, touchHoldCb, this);
             if (touchTrack.timer)
-                wl_event_source_timer_update(touchTrack.timer, 500);
+                wl_event_source_timer_update(touchTrack.timer, Hyprdrive::Config::getValue<int>("plugin:hyprdrive:touch:hold_ms"));
         }
 }
 

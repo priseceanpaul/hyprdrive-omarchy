@@ -3,6 +3,7 @@
 #include "TouchBridge.hpp"
 #include "Dock.hpp"
 #include "IOverview.hpp"
+#include "Config.hpp"
 
 #include <cmath>
 #include <linux/input-event-codes.h>
@@ -18,8 +19,9 @@
 
 namespace Hyprdrive::TouchBridge {
     namespace {
-        constexpr int HOLD_MS = 500;
-        constexpr double SLOP_PX = 12.0;
+        // Read live each time. NixOs-dots docs/manual.md#holding-in-hyprdrive
+        int    holdMs() { return Hyprdrive::Config::getValue<int>("plugin:hyprdrive:touch:hold_ms"); }
+        double slopPx() { return Hyprdrive::Config::getValue<int>("plugin:hyprdrive:touch:slop"); }
 
         CHyprSignalListener g_down, g_motion, g_up, g_cancel;
         wl_event_source*    g_timer = nullptr;
@@ -68,7 +70,7 @@ namespace Hyprdrive::TouchBridge {
             g_timer = wl_event_loop_add_timer(g_pCompositor->m_wlEventLoop, onTimer, nullptr);
 
         g_down = Event::bus()->m_events.input.touch.down.listen([](ITouch::SDownEvent e, Event::SCallbackInfo& info) {
-            if (info.cancelled || g_pSessionLockManager->isSessionLocked())
+            if (info.cancelled || g_pSessionLockManager->isSessionLocked() || !Hyprdrive::Config::getValue<bool>("plugin:hyprdrive:touch:dock"))
                 return;
             if (g_t.owned) { // a second finger while one is held on the dock is swallowed too
                 info.cancelled = true;
@@ -89,7 +91,7 @@ namespace Hyprdrive::TouchBridge {
             Pointer::pointerController()->warpTo(POINT, true);
             g_pInputManager->simulateMouseMovement();
             if (g_timer)
-                wl_event_source_timer_update(g_timer, HOLD_MS);
+                wl_event_source_timer_update(g_timer, holdMs());
         });
 
         g_motion = Event::bus()->m_events.input.touch.motion.listen([](ITouch::SMotionEvent e, Event::SCallbackInfo& info) {
@@ -99,7 +101,7 @@ namespace Hyprdrive::TouchBridge {
             const auto mon = g_t.mon.lock();
             if (!mon || g_t.moved)
                 return;
-            if ((mon->m_position + e.pos * mon->m_size).distance(g_t.start) > SLOP_PX) {
+            if ((mon->m_position + e.pos * mon->m_size).distance(g_t.start) > slopPx()) {
                 g_t.moved = true;
                 if (g_timer)
                     wl_event_source_timer_update(g_timer, 0);
