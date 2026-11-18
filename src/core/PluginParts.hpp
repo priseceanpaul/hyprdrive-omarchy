@@ -116,6 +116,7 @@ using namespace Hyprutils::String;
 #include "Placement.hpp"
 #include "FingerSwipe.hpp"
 #include "SpringLoad.hpp"
+#include "TouchBridge.hpp"
 #include "HotCorner.hpp"
 #include "Ripple.hpp"
 #include "Crystal.hpp"

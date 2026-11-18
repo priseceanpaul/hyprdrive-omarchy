@@ -1012,6 +1012,13 @@ class COverview : public IOverview {
     void onTouchUp(ITouch::SUpEvent e, Event::SCallbackInfo& info);
     void onTouchCancel(ITouch::SCancelEvent e, Event::SCallbackInfo& info);
     void endTouch(bool tap);
+    void openTileMenu(const PHLWINDOW& tile);
+    void cancelTouchHold();
+
+public:
+    void touchHoldFired();
+
+private:
     void onMouseButton(IPointer::SButtonEvent event, Event::SCallbackInfo& info);
     void onCursorSelect(ITouch::SDownEvent, Event::SCallbackInfo& info);
     void onMouseAxis(IPointer::SAxisEvent e, Event::SCallbackInfo& info);
@@ -1037,6 +1044,9 @@ class COverview : public IOverview {
         Vector2D start;
         Vector2D last;
         bool     swiping = false;
+        bool     lifted   = false; // held 500 ms on a tile
+        bool     dragging = false; // a synthesized left press is down
+        wl_event_source* timer = nullptr;
     } touchTrack;
     CHyprSignalListener             mouseAxisHook;
     CHyprSignalListener             windowOpenHook;

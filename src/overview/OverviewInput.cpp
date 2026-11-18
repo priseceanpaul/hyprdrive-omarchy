@@ -236,8 +236,10 @@ void COverview::onMouseMove(Vector2D, Event::SCallbackInfo& info) {
 
 }
 
+static void synthButton(uint32_t button, bool pressed);
+
 void COverview::onTouchMove(ITouch::SMotionEvent e, Event::SCallbackInfo& info) {
-        if (closing || scrollOverviewAt(g_pInputManager->getMouseCoordsInternal()).get() != this)
+        if (info.cancelled || closing || scrollOverviewAt(g_pInputManager->getMouseCoordsInternal()).get() != this)
             return;
 
         info.cancelled = true;
@@ -246,9 +248,21 @@ void COverview::onTouchMove(ITouch::SMotionEvent e, Event::SCallbackInfo& info) 
             // The tracked finger drives the cursor and, past 24 px sideways, the pad's swipe.
             // docs/manual.md#tapping-in-hyprdrive
             Pointer::pointerController()->warpTo(PMONITOR->m_position + e.pos * PMONITOR->m_size, true);
+            if (touchTrack.lifted) {
+                if (!touchTrack.dragging) {
+                    touchTrack.dragging = true;
+                    synthButton(BTN_LEFT, true);
+                }
+                g_pInputManager->simulateMouseMovement();
+                lastMousePosLocal = getOverviewMousePosLocal(PMONITOR);
+                requestInputFrame();
+                return;
+            }
             const Vector2D POS  = getOverviewMousePosLocal(PMONITOR);
             const Vector2D STEP = POS - touchTrack.last;
             touchTrack.last     = POS;
+            if (POS.distanceSq(touchTrack.start) > 144.0)
+                cancelTouchHold();
             if (!touchTrack.swiping && std::abs(POS.x - touchTrack.start.x) > 24.0 && std::abs(POS.x - touchTrack.start.x) > std::abs(POS.y - touchTrack.start.y)) {
                 onWorkspaceSwipeBegin();
                 touchTrack.swiping = true;
@@ -263,9 +277,59 @@ void COverview::onTouchMove(ITouch::SMotionEvent e, Event::SCallbackInfo& info) 
         requestInputFrame();
 }
 
+void COverview::openTileMenu(const PHLWINDOW& TILE) {
+        const auto MON   = pMonitor.lock();
+        const auto CLASS = AppSearch::identityClass(TILE->m_class, TILE->m_title);
+        auto       item  = Hyprdrive::Dock::appItems({AppSearch::idForClass(CLASS)}).front();
+        item.wmClass     = CLASS; // the dock's key for an app with no desktop entry
+        item.running     = true;
+        if (Hyprdrive::Dock::openMenuFor(MON, item, CBox{lastMousePosLocal, {1, 1}}))
+            damage();
+}
+
+static void synthButton(uint32_t button, bool pressed) {
+        IPointer::SButtonEvent b;
+        b.timeMs = Time::millis(Time::steadyNow());
+        b.button = button;
+        b.state  = pressed ? WL_POINTER_BUTTON_STATE_PRESSED : WL_POINTER_BUTTON_STATE_RELEASED;
+        g_pInputManager->onMouseButton(b, g_pInputManager->m_pointers.empty() ? nullptr : g_pInputManager->m_pointers.front());
+}
+
+static int touchHoldCb(void* data) {
+        static_cast<COverview*>(data)->touchHoldFired();
+        return 0;
+}
+
+void COverview::cancelTouchHold() {
+        if (touchTrack.timer)
+            wl_event_source_timer_update(touchTrack.timer, 0);
+}
+
+// A 500 ms still hold on a tile lifts it. NixOs-dots docs/manual.md#holding-in-hyprdrive
+void COverview::touchHoldFired() {
+        if (!touchTrack.active || touchTrack.swiping || closing)
+            return;
+        touchTrack.lifted = true;
+        damage();
+        requestInputFrame();
+}
+
 void COverview::endTouch(bool tap) {
+        cancelTouchHold();
+        if (touchTrack.dragging) {
+            synthButton(BTN_LEFT, false);
+            touchTrack = {.timer = touchTrack.timer};
+            return;
+        }
+        if (touchTrack.lifted && tap && !touchTrack.swiping) {
+            const auto TILE = windowAtOverviewCursor();
+            touchTrack      = {.timer = touchTrack.timer};
+            if (!closing && shouldShowOverviewWindow(TILE) && !shouldShowPinnedFloatingOverviewWindow(TILE))
+                openTileMenu(TILE);
+            return;
+        }
         const bool SWIPING = touchTrack.swiping;
-        touchTrack         = {};
+        touchTrack         = {.timer = touchTrack.timer};
         if (closing)
             return;
         if (SWIPING)
@@ -275,7 +339,7 @@ void COverview::endTouch(bool tap) {
 }
 
 void COverview::onTouchUp(ITouch::SUpEvent e, Event::SCallbackInfo& info) {
-        if (!touchTrack.active || e.touchID != touchTrack.id)
+        if (info.cancelled || !touchTrack.active || e.touchID != touchTrack.id)
             return;
         info.cancelled = true;
         endTouch(true);
@@ -701,13 +765,7 @@ void COverview::onMouseButton(IPointer::SButtonEvent event, Event::SCallbackInfo
             const bool PENDING = submapMouseClickPending && submapMouseClickButton == event.button;
             clearSubmapMouseClickPending();
             if (!(PENDING && dispatchSubmapMouseClick(event.button)) && TILE) {
-                const auto MON = pMonitor.lock();
-                const auto CLASS = AppSearch::identityClass(TILE->m_class, TILE->m_title);
-                auto       item  = Hyprdrive::Dock::appItems({AppSearch::idForClass(CLASS)}).front();
-                item.wmClass     = CLASS; // the dock's key for an app with no desktop entry
-                item.running     = true;
-                if (Hyprdrive::Dock::openMenuFor(MON, item, CBox{lastMousePosLocal, {1, 1}}))
-                    damage();
+                openTileMenu(TILE);
             }
             return;
         }
@@ -734,6 +792,9 @@ void COverview::onMouseButton(IPointer::SButtonEvent event, Event::SCallbackInfo
 }
 
 void COverview::onCursorSelect(ITouch::SDownEvent e, Event::SCallbackInfo& info) {
+        // A touch the dock's bridge owns is not the overview's. NixOs-dots docs/manual.md#holding-in-hyprdrive
+        if (info.cancelled)
+            return;
         // A tap acts where the finger is, not where the cursor was parked.
         // docs/manual.md#tapping-in-hyprdrive
         if (const auto PMONITOR = pMonitor.lock())
@@ -750,7 +811,14 @@ void COverview::onCursorSelect(ITouch::SDownEvent e, Event::SCallbackInfo& info)
         // A tap acts on release; a second finger is ignored. docs/manual.md#tapping-in-hyprdrive
         if (touchTrack.active)
             return;
-        touchTrack = {true, e.touchID, getOverviewMousePosLocal(pMonitor.lock()), getOverviewMousePosLocal(pMonitor.lock()), false};
+        touchTrack = {true, e.touchID, getOverviewMousePosLocal(pMonitor.lock()), getOverviewMousePosLocal(pMonitor.lock()), false, false, false, touchTrack.timer};
+        const auto TILE = windowAtOverviewCursor();
+        if (shouldShowOverviewWindow(TILE) && !shouldShowPinnedFloatingOverviewWindow(TILE)) {
+            if (!touchTrack.timer && g_pCompositor)
+                touchTrack.timer = wl_event_loop_add_timer(g_pCompositor->m_wlEventLoop, touchHoldCb, this);
+            if (touchTrack.timer)
+                wl_event_source_timer_update(touchTrack.timer, 500);
+        }
 }
 
 void COverview::onMouseAxis(IPointer::SAxisEvent e, Event::SCallbackInfo& info) {

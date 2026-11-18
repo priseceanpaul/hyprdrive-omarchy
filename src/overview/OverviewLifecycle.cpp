@@ -13,6 +13,8 @@ using namespace OverviewDetail;
 constexpr float SEARCH_ANIM_SPEED = 1.8F;
 
 COverview::~COverview() {
+    if (touchTrack.timer)
+        wl_event_source_remove(touchTrack.timer);
     TileChrome::forget();
     // X51: the cache used to be dropped here, which meant every open re-rendered
     // the same strings -- measured 14 cold pango renders per open, forever,

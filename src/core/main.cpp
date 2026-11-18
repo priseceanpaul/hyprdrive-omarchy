@@ -828,6 +828,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     // Both read their keys at once: only after registerConfig() above.
     Hyprdrive::FingerSwipe::init();
     Hyprdrive::SpringLoad::init();
+    Hyprdrive::TouchBridge::init();
     Hyprdrive::HotCorner::init();
     Hyprdrive::Ripple::init();
     Hyprdrive::FlightBlur::init();
@@ -1041,6 +1042,7 @@ APICALL EXPORT void PLUGIN_EXIT() {
     // Before the gesture teardown below: a swipe the plugin is driving ends
     // through it, and the spring timer must not fire into unloaded code.
     Hyprdrive::SpringLoad::shutdown();
+    Hyprdrive::TouchBridge::shutdown();
     Hyprdrive::HotCorner::shutdown();
     Hyprdrive::FingerSwipe::shutdown();
 
