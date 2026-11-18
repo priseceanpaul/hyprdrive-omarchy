@@ -993,7 +993,7 @@ APICALL EXPORT void PLUGIN_EXIT() {
     // and clearGestures() is what already answers it for them.
     if (g_pHyprRenderer) {
         for (const char* TYPE : {"COverviewBlurPassElement", "COverviewSplitBorderPassElement", "COverviewShadowPassElement", "CDockLivePreviewPassElement",
-                                 "CDockTiltPassElement", "CStackBlurPassElement", Hyprdrive::Ripple::PASS_NAME})
+                                 "CDockTiltPassElement", "CStackBlurPassElement", Hyprdrive::Ripple::PASS_NAME, Hyprdrive::Crystal::PASS_NAME})
             g_pHyprRenderer->m_renderPass.removeAllOfType(TYPE);
     }
 
@@ -1002,6 +1002,7 @@ APICALL EXPORT void PLUGIN_EXIT() {
     Hyprdrive::DockTilt::shutdown();
     Hyprdrive::StackBlur::shutdown();
     Hyprdrive::Ripple::shutdown();
+    Hyprdrive::Crystal::shutdown();
 
     // Whatever no module joined (Empty Trash), within the same deadline. No
     // thread of ours may outlive this function in code about to be unmapped.

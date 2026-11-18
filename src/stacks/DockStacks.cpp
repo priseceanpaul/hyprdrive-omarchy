@@ -6,6 +6,7 @@
 #include "MotionClock.hpp"
 
 #include "DockStacks.hpp"
+#include "Crystal.hpp"
 #include "Locations.hpp"
 #include <unordered_set>
 #include "Thumbs.hpp"

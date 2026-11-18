@@ -32,6 +32,10 @@ void queueDockFrost(PHLMONITOR monitor, const CBox& box, int rounding, float alp
                            float roundingPower = 2.F) {
     if (!Stacks::drawableBox(box) || alpha <= 0.F) // box.empty() lets a NEGATIVE box through
         return;
+    if (Hyprdrive::Crystal::enabled()) {
+        Hyprdrive::Crystal::queue(box, rounding, alpha, Hyprdrive::Crystal::PLATE);
+        return;
+    }
 
     // Same switch window frost and overview chrome capture use. Dock keys of
     // -1 already mean "follow decoration:blur:*"; with the theme blur off a

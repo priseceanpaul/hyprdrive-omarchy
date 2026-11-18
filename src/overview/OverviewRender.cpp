@@ -1,6 +1,7 @@
 #include "OverviewRender.hpp"
 #include "IdentityLive.hpp"
 #include "OverviewPassElement.hpp"
+#include "Crystal.hpp"
 #include <chrono>
 #include <cstring>
 #include <vector>
@@ -1028,6 +1029,11 @@ void queueBlur(const CBox& box, int rounding, float roundingPower, float alpha, 
     if (box.empty())
         return;
 
+    if (Hyprdrive::Crystal::enabled()) {
+        Hyprdrive::Crystal::queue(box, rounding, alpha, Hyprdrive::Crystal::PLATE);
+        return;
+    }
+
     // Same switch window frost and dock frost use. Search/strip chrome used to
     // queue a live dual-kawase even when decoration:blur:enabled was off, so a
     // squared Omarchy theme still got a frosted pill.
@@ -1062,18 +1068,22 @@ void themePlate(const CBox& box, int rounding, float roundingPower, float alpha,
     const auto TINT = Hyprdrive::Config::dockBackgroundColor();
     CRectPassElement::SRectData bg;
     bg.box           = box;
-    bg.color         = CHyprColor{TINT.r, TINT.g, TINT.b, TINT.a * alpha};
+    bg.color         = CHyprColor{TINT.r, TINT.g, TINT.b, Hyprdrive::Crystal::tintAlpha(TINT.a) * alpha};
     bg.round         = rounding;
     bg.roundingPower = roundingPower;
     g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(bg));
+    Hyprdrive::Crystal::bevel(box, rounding, alpha);
 
+    // (crystal: no resting outline, as True Glass drops the menus' own; the hover one softer)
+    if (Hyprdrive::Crystal::enabled() && !lit)
+        return;
     const int  BORDERSIZE = std::max(1, Hyprdrive::Config::getValue<int>("general:border_size"));
     CBorderPassElement::SBorderData border;
     border.box           = box.copy().round();
     const auto LIT     = Hyprdrive::Config::highlightColor().modifyA(1.F);
     const auto RESTING = Hyprdrive::Config::restingBorderColor();
     border.grad1.reset(fadeKey ? Hyprdrive::BorderFade::color(g_pHyprRenderer->m_renderData.pMonitor.lock(), fadeKey, lit, RESTING, LIT) : lit ? LIT : RESTING);
-    border.a             = alpha;
+    border.a             = alpha * (Hyprdrive::Crystal::enabled() ? 0.6F : 1.F);
     border.borderSize    = BORDERSIZE;
     border.round         = rounding;
     border.roundingPower = roundingPower;

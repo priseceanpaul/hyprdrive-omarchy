@@ -1173,7 +1173,8 @@ void renderMenuOne(PHLMONITOR monitor, const SLayout& layout, SMenu& M, float OP
         border.borderSize    = BORDERSIZE;
         border.round         = sc<int>(std::round(std::min<double>(MENU_RADIUS() * SCALE, VISH / 2.0)));
         border.roundingPower = 2.F;
-        if (Stacks::drawableBox(border.box))
+        // (crystal: the glass's own rim is the outline)
+        if (Stacks::drawableBox(border.box) && !Hyprdrive::Crystal::enabled())
             g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(border));
     }
 

@@ -1,4 +1,5 @@
 #include "AppGrid.hpp"
+#include "Crystal.hpp"
 
 #include "AppSearch.hpp"
 #include "Config.hpp"
@@ -346,7 +347,8 @@ void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& 
     // The theme's corners and border, as the dock's menu and folder panel wear them.
     const int ROUND = sc<int>(std::round(Hyprdrive::Config::themeRounding() * S));
     Dock::frostedPlate(monitor, g_state.plate, ROUND, ALPHA);
-    {
+    // (crystal: the glass's own rim is the outline)
+    if (!Hyprdrive::Crystal::enabled()) {
         CBorderPassElement::SBorderData border;
         border.box           = g_state.plate.copy().round();
         border.grad1         = Hyprdrive::Config::themeBorder(ALPHA);

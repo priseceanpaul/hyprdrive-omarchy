@@ -1,6 +1,7 @@
 // Dock stacks: drawing the open popup (render) and its scrollbar arc. Split out of
 // DockStacks.cpp; the state is still there (StackParts.hpp).
 #include "StackParts.hpp"
+#include "Crystal.hpp"
 #include "MotionCurves.hpp"
 
 using namespace StacksDetail;
@@ -247,7 +248,8 @@ namespace Hyprdrive::Stacks {
                 border.borderSize    = std::max(1, Config::getValue<int>("general:border_size"));
                 border.round         = sc<int>(std::round(GRID_RADIUS() * SCALE));
                 border.roundingPower = 2.F;
-                if (drawableBox(border.box))
+                // (crystal: the glass's own rim is the outline)
+                if (drawableBox(border.box) && !Hyprdrive::Crystal::enabled())
                     g_pHyprRenderer->addPassElement(makeUnique<CBorderPassElement>(border));
             }
 

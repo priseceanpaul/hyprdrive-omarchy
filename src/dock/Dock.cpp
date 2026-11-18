@@ -810,7 +810,7 @@ void frostedPlate(PHLMONITOR monitor, const CBox& box, int rounding, float alpha
     const auto                  TINT = background();
     CRectPassElement::SRectData bg;
     bg.box           = box;
-    bg.color         = CHyprColor{TINT.r, TINT.g, TINT.b, TINT.a * alpha};
+    bg.color         = CHyprColor{TINT.r, TINT.g, TINT.b, Hyprdrive::Crystal::tintAlpha(TINT.a) * alpha};
     bg.round         = rounding;
     bg.roundingPower = roundingPower;
     bg.clipBox       = clip;
@@ -818,6 +818,7 @@ void frostedPlate(PHLMONITOR monitor, const CBox& box, int rounding, float alpha
         g_pHyprRenderer->addPassElement(makeUnique<CRectPassElement>(bg));
     else
         g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(bg));
+    Hyprdrive::Crystal::bevel(box, rounding, alpha);
 }
 
 void minimizeWithFlight(PHLMONITOR monitor, PHLWINDOW window, bool bounceOnLand, std::optional<CBox> startBox) {
@@ -1223,7 +1224,9 @@ void render(PHLMONITOR monitor) {
         border.borderSize    = BORDERSIZE;
         border.round         = LAYOUT.rounding;
         border.roundingPower = 2.F;
-        g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(border));
+        // (crystal: the glass's own rim is the outline)
+        if (!Hyprdrive::Crystal::enabled())
+            g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(border));
     }
 
     // (user, 2026-08-03): GNOME lights the hovered app cell with a translucent

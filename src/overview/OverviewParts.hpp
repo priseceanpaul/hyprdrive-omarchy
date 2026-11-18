@@ -16,6 +16,7 @@
 #include "DebugPaths.hpp"
 #include "Mosaic.hpp"
 #include "FlightBlur.hpp"
+#include "Crystal.hpp"
 #include "OpenProf.hpp"
 #include "FramePacing.hpp"
 #include "DockStacks.hpp"

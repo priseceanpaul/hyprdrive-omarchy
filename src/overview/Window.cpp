@@ -1,5 +1,6 @@
 #include "Window.hpp"
 #include "FlightBlur.hpp"
+#include "Crystal.hpp"
 #include "BorderFade.hpp"
 #include <chrono>
 #include <algorithm>
@@ -1305,7 +1306,13 @@ void renderOverviewWindow(const SRenderParams& params) {
             // corner, and that is what showed through. So the preview frosts its
             // own cell -- what is really under it -- ahead of the modifier, and
             // the window's own alpha goes on top, exactly as on the desktop.
-            if (g_pHyprRenderer->shouldBlur(WINDOW)) {
+            // (with crystal on, the crystal pass instead, so a preview keeps its glass)
+            if (Hyprdrive::Crystal::enabled()) {
+                const CBox BOX = CBox{sc<double>(OFFX + sc<float>(REALPX.x) * S), sc<double>(OFFY + sc<float>(REALPX.y) * S), sc<double>(SCALEDW), sc<double>(SCALEDH)}.round();
+                const int  ROUND = params.previewRoundingPx >= 0 ? params.previewRoundingPx : sc<int>(std::round(WINDOW->rounding() * MONITOR->m_scale * S));
+                if (auto el = Hyprdrive::Crystal::element(BOX, ROUND, 1.F))
+                    g_pHyprRenderer->addPassElement(std::move(el));
+            } else if (g_pHyprRenderer->shouldBlur(WINDOW)) {
                 COverviewBlurPassElement::SData frost;
                 // The window's own letterboxed rect in the cell, not the cell.
                 frost.box           = CBox{sc<double>(OFFX + sc<float>(REALPX.x) * S), sc<double>(OFFY + sc<float>(REALPX.y) * S), sc<double>(SCALEDW), sc<double>(SCALEDH)}.round();
@@ -1378,6 +1385,10 @@ void renderOverviewWindow(const SRenderParams& params) {
 
     if (!fullscreen)
         renderOverviewWindowShadow(params.monitor, params.window, params.windowBox, metrics, params.selected);
+    // True Glass's glass is a desktop decoration the overview never draws: the tile gets crystal instead
+    if (!fullscreen && Hyprdrive::Crystal::enabled())
+        if (auto el = Hyprdrive::Crystal::element(params.windowBox.copy().round(), metrics.roundingPx, metrics.targetOpacity))
+            g_pHyprRenderer->addPassElement(std::move(el));
 
     // The UNDER decorations are inseparable from the flush: they queue, the pass
     // is rendered, and only then may their state be restored. A caller that does

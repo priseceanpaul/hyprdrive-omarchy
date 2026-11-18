@@ -70,6 +70,7 @@
 #include "Minimize.hpp"
 #include "TileChrome.hpp"
 #include "OverviewPassElement.hpp"
+#include "Crystal.hpp"
 #include "OverviewRender.hpp"
 #include "Window.hpp"
 #include "WindowPill.hpp"

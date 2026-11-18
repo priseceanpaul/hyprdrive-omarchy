@@ -552,7 +552,7 @@ void COverview::render() {
     // holds 60 fps or drops a refresh.
     const float OPENSCALE    = Hyprdrive::Config::getScale();
     const float OPENPROGRESS = std::clamp(std::abs(SCALE - 1.F) / std::max(0.01F, std::abs(1.F - OPENSCALE)), 0.F, 1.F);
-    const bool  BACKDROPCOVERS = OPENPROGRESS >= 0.999F && WALLPAPERMODE != 1 && frost.backdropFB && frost.backdropFB->isAllocated() && frost.backdropFB->getTexture();
+    const bool  BACKDROPCOVERS = OPENPROGRESS >= 0.999F && WALLPAPERMODE != 1 && !Hyprdrive::Crystal::enabled() && frost.backdropFB && frost.backdropFB->isAllocated() && frost.backdropFB->getTexture();
     if ((WALLPAPERMODE == 0 || WALLPAPERMODE == 2) && !BACKDROPCOVERS)
         renderGlobalWallpaper(MONITOR, NOW);
     else
@@ -580,8 +580,13 @@ void COverview::render() {
         const float OPEN     = Hyprdrive::Config::getScale();
         const float RANGE    = std::max(0.01F, std::abs(1.F - OPEN));
         const float PROGRESS = std::clamp(std::abs(SCALE - 1.F) / RANGE, 0.F, 1.F);
-        float       DIM      = BACKDROP_DIM * PROGRESS;
-        if (PROGRESS > 0.001F && WALLPAPERMODE != 1) {
+        const bool  CRYSTAL  = Hyprdrive::Crystal::enabled();
+        float       DIM      = (CRYSTAL ? Hyprdrive::Crystal::backdropDim() : BACKDROP_DIM) * PROGRESS;
+        // crystal: the sharp wallpaper cut and frosted, then a lighter dim over it
+        if (PROGRESS > 0.001F && CRYSTAL) {
+            Hyprdrive::Crystal::queue(CBox{0, 0, MONITOR->m_transformedSize.x, MONITOR->m_transformedSize.y}, 0, PROGRESS, Hyprdrive::Crystal::BACKDROP);
+            OverviewRender::flushPass(MONITOR);
+        } else if (PROGRESS > 0.001F && WALLPAPERMODE != 1) {
             updateBackdropBlurCache(MONITOR, WALLPAPERMODE, NOW);
             OpenProf::gpuMark("blurcache");
             // THE DIM IS BAKED INTO THE CACHE (2026-09-30): the backdrop holds

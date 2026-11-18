@@ -210,6 +210,17 @@ static void registerConfigValuesFor() {
     // Kept so an old `blur = ...` line still parses; nothing reads it (the frost
     // was always on). plugin:hyprdrive:backdrop picks what it shows.
     addKey(makeShared<CBoolValue>(KEY("blur"), "unused: see plugin:hyprdrive:backdrop", false));
+    addKey(makeShared<CBoolValue>(KEY("crystal"), "cut crystal behind menus and panels, in place of their blur", false));
+    addKey(makeShared<CFloatValue>(KEY("crystal_frost"), "the crystal's frost, as True Glass's menu glass: 0 clear, 0.5 auto, 1 frosted", 1.F, SFloatValueOptions{.min = 0.F, .max = 1.F}));
+    addKey(makeShared<CFloatValue>(KEY("crystal_depth"), "the crystal's depth, as True Glass's: 0 thin, 1 thick", 0.F, SFloatValueOptions{.min = 0.F, .max = 1.F}));
+    // the panel's Crystal section; True Glass's engine reads the shard four by name too
+    addKey(makeShared<CFloatValue>(KEY("crystal_cell"), "crystal shard size, logical px", 220.F, SFloatValueOptions{.min = 40.F, .max = 600.F}));
+    addKey(makeShared<CFloatValue>(KEY("crystal_shift"), "how far each shard bends what is behind it, x the default", 1.F, SFloatValueOptions{.min = 0.F, .max = 2.F}));
+    addKey(makeShared<CFloatValue>(KEY("crystal_milk"), "the shards' milkiness, x the default", 1.F, SFloatValueOptions{.min = 0.F, .max = 3.F}));
+    addKey(makeShared<CFloatValue>(KEY("crystal_edge"), "the light along the shards' edges, x the default", 1.F, SFloatValueOptions{.min = 0.F, .max = 3.F}));
+    addKey(makeShared<CFloatValue>(KEY("crystal_tint"), "a Hyprdrive panel's own colour over its crystal", 0.05F, SFloatValueOptions{.min = 0.F, .max = 1.F}));
+    addKey(makeShared<CFloatValue>(KEY("crystal_backdrop_dim"), "the overview backdrop's darkening with crystal on", 0.3F, SFloatValueOptions{.min = 0.F, .max = 0.9F}));
+    addKey(makeShared<CIntValue>(KEY("crystal_tone"), "the crystal's tint, as True Glass's: 0 none, 1 light, 2 dark", 0, SIntValueOptions{.min = 0, .max = 2}));
     addKey(makeShared<CStringValue>(KEY("backdrop"),
                                     "what the overview blurs behind the desktop cards: off (the wallpaper darkened, no blur), wallpaper (the static "
                                     "wallpaper), snapshot (a live wallpaper, frozen as the overview opens), live (re-blurred as it moves), auto (live "
