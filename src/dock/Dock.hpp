@@ -221,6 +221,8 @@ bool    click(PHLMONITOR monitor, const Vector2D& point, bool shift, bool middle
 // Returns whether the panel claimed the event; `release` false claims without
 // acting, matching the dock's press-remembers / release-decides gesture.
 bool    panelClick(PHLMONITOR monitor, const Vector2D& point, bool release);
+// Middle on a preview: close its window. NixOs-dots docs/manual.md#preview-menus
+bool    panelClose(PHLMONITOR monitor, const Vector2D& point, bool pressed);
 
 // Y11. Is the dock drawing a LIVE preview of this window right now? The overview
 // suppresses frame callbacks for windows whose tile is off screen, which is

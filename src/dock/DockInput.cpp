@@ -80,6 +80,10 @@ SClaim handleMenu(PHLMONITOR mon, const Vector2D& local, EButton role, bool pres
     // claimed here: BTN_MIDDLE is also the overview's secondary drag button, so a
     // miss would start a workspace pan instead of launching. Press acts, both
     // edges eaten.
+    if (role == EButton::Launch && !windowDragActive && Dock::panelClose(mon, local, pressed)) {
+        out.claimed = true;
+        return out;
+    }
     if (role == EButton::Launch && !windowDragActive && Dock::pillContains(mon, local)) {
         if (pressed)
             Dock::click(mon, local, shiftHeld(), true);

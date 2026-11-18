@@ -1281,6 +1281,17 @@ bool panelDragRelease(PHLMONITOR monitor, const Vector2D& point) {
 
 static void goToPreviewWindow(PHLMONITOR monitor, PHLWINDOW WINDOW);
 
+// A middle press on a preview closes its window; both edges are the panel's.
+// NixOs-dots docs/manual.md#preview-menus
+bool panelClose(PHLMONITOR monitor, const Vector2D& point, bool pressed) {
+    if (!panelContains(monitor, point))
+        return false;
+
+    if (const auto CELL = panelCellAt(monitor, point); CELL && pressed)
+        CELL->second->sendClose();
+    return true;
+}
+
 bool panelClick(PHLMONITOR monitor, const Vector2D& point, bool release) {
     if (!monitor)
         return false;
