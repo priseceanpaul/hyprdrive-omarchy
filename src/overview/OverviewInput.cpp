@@ -3,6 +3,7 @@
 #include "DockInput.hpp"
 #include "DockStacks.hpp"
 #include "HoverTarget.hpp"
+#include <hyprland/src/pointer/PointerController.hpp>
 using namespace OvInternal; // opted in here rather than leaked from the header
 
 // For main.cpp's click dispatcher, which does not include OverviewInternal.hpp.
@@ -689,7 +690,12 @@ void COverview::onMouseButton(IPointer::SButtonEvent event, Event::SCallbackInfo
         finishWindowDragOrClick(event.button, true);
 }
 
-void COverview::onCursorSelect(ITouch::SDownEvent, Event::SCallbackInfo& info) {
+void COverview::onCursorSelect(ITouch::SDownEvent e, Event::SCallbackInfo& info) {
+        // A tap acts where the finger is, not where the cursor was parked.
+        // docs/manual.md#tapping-in-hyprdrive
+        if (const auto PMONITOR = pMonitor.lock())
+            Pointer::pointerController()->warpTo(PMONITOR->m_position + e.pos * PMONITOR->m_size, true);
+
         if (closing || scrollOverviewAt(g_pInputManager->getMouseCoordsInternal()).get() != this)
             return;
 
@@ -698,9 +704,7 @@ void COverview::onCursorSelect(ITouch::SDownEvent, Event::SCallbackInfo& info) {
 
         info.cancelled = true;
 
-        selectWindowAtOverviewCursor();
-
-        close();
+        performPrimaryClickAction();
 }
 
 void COverview::onMouseAxis(IPointer::SAxisEvent e, Event::SCallbackInfo& info) {
