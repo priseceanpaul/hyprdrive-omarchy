@@ -120,6 +120,7 @@ using namespace Hyprutils::String;
 #include "Ripple.hpp"
 #include "Crystal.hpp"
 #include "KeyboardOwner.hpp"
+#include "WebOpen.hpp"
 #include "BorderFade.hpp"
 
 typedef void (*origSendWindowSize)(void*, bool);

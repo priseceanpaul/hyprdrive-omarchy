@@ -117,6 +117,7 @@ inline bool arrangeLayoutBefore(const PHLWINDOW& l, const PHLWINDOW& r) {
 #include "OverviewRender.hpp"
 #include "Window.hpp"
 #include "SearchProviders.hpp"
+#include "WebOpen.hpp"
 
 // Anything that eases by hand -- tile hover, tile press, the grid reflow -- goes
 // through here, so the whole plugin is driven by the same two curve objects the
@@ -577,6 +578,7 @@ inline std::vector<SSearchRow> overviewSearchRows() {
         uint64_t    inputs  = 0;
         uint64_t    members = 0;
         uint64_t    apps    = 0;
+        uint64_t    web     = 0;
         bool        filled  = false;
 
         std::chrono::steady_clock::time_point builtAt{};
@@ -592,8 +594,10 @@ inline std::vector<SSearchRow> overviewSearchRows() {
     const uint64_t INPUTS  = SearchBackend::searchInputsGeneration();
     const uint64_t MEMBERS = Membership::generation();
     const uint64_t APPS    = AppSearch::inventoryGeneration();
+    const uint64_t WEB     = WebOpen::generation();
 
-    if (MEMO.filled && FRESH && MEMO.query == Q && MEMO.browse == MENU_BROWSE && MEMO.route == ROUTE && MEMO.inputs == INPUTS && MEMO.members == MEMBERS && MEMO.apps == APPS)
+    if (MEMO.filled && FRESH && MEMO.query == Q && MEMO.browse == MENU_BROWSE && MEMO.route == ROUTE && MEMO.inputs == INPUTS && MEMO.members == MEMBERS && MEMO.apps == APPS &&
+        MEMO.web == WEB)
         return MEMO.rows;
 
     MEMO.query   = Q;
@@ -602,6 +606,7 @@ inline std::vector<SSearchRow> overviewSearchRows() {
     MEMO.inputs  = INPUTS;
     MEMO.members = MEMBERS;
     MEMO.apps    = APPS;
+    MEMO.web     = WEB;
     MEMO.rows    = overviewSearchRowsLive();
     MEMO.builtAt = NOW;
     MEMO.filled  = true;
@@ -747,29 +752,25 @@ inline std::vector<SSearchRow> overviewSearchRowsLive() {
         }
     }
 
-    // nixos-dots: the web search leads the AI & Tools column.
+    // nixos-dots: the web leads the AI & Tools column: the address typed, Brave's
+    // sites, then Brave's engine. NixOs-dots docs/manual.md#web-search-in-hyprdrive
     if (!Q.empty() && !MENU_BROWSE && !SearchBackend::isAgentQuery(Q)) {
-        SearchBackend::SSearchItem webItem;
-        webItem.kind          = SearchBackend::EItemKind::Action;
-        webItem.id            = "web:google";
-        webItem.name          = "Search Google";
-        webItem.description   = Q;
-        webItem.icon          = "web-browser";
-        webItem.category      = "Web";
-        std::string qenc;
-        for (unsigned char c : Q) {
-            if (std::isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~')
-                qenc += static_cast<char>(c);
-            else if (c == ' ')
-                qenc += '+';
-            else {
-                char buf[8];
-                std::snprintf(buf, sizeof(buf), "%%%02X", c);
-                qenc += buf;
-            }
-        }
-        webItem.actionCommand = "xdg-open 'https://www.google.com/search?q=" + qenc + "'";
-        rows.push_back({webItem.name, webItem.description, webItem.icon, "", nullptr, {}, webItem, 2});
+        auto webRow = [&](const std::string& id, const std::string& name, const std::string& description, const std::string& command) {
+            SearchBackend::SSearchItem webItem;
+            webItem.kind          = SearchBackend::EItemKind::Action;
+            webItem.id            = id;
+            webItem.name          = name;
+            webItem.description   = description;
+            webItem.icon          = "web-browser";
+            webItem.category      = "Web";
+            webItem.actionCommand = command;
+            rows.push_back({webItem.name, webItem.description, webItem.icon, "", nullptr, {}, webItem, 2});
+        };
+        if (WebOpen::looksLikeUrl(Q))
+            webRow("web:open", "Open " + Q, "in Brave", WebOpen::openCommand(Q));
+        for (const auto& [LABEL, URL] : WebOpen::matches(Q, 3))
+            webRow("web:site:" + URL, LABEL, URL, WebOpen::openCommand(URL));
+        webRow("web:search", "Search " + WebOpen::engine(), Q, WebOpen::searchCommand(Q));
     }
 
     if (SearchBackend::isAgentQuery(Q)) {

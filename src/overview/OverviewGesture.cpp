@@ -9,6 +9,7 @@
 #include "Overview.hpp"
 #include "SearchBackend.hpp"
 #include "SearchProviders.hpp"
+#include "WebOpen.hpp"
 #include "Scratchpad.hpp"
 #include "DockStacks.hpp"
 #include "OverviewGestureDecision.hpp"
@@ -104,6 +105,7 @@ void COverviewGesture::begin(const ITrackpadGesture::STrackpadGestureBegin& e) {
         resetSearchSession();
         // No SearchProviders::warm() here: see X54 in main.cpp. The first
         // keystroke starts cold providers; an open never launches GTK apps.
+        WebOpen::warm();
         SearchBackend::init();
 
         for (const auto& MONITOR : State::monitorState()->monitors()) {

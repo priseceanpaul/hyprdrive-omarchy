@@ -313,6 +313,7 @@ SDispatchResult onOverviewDispatcher(std::string arg) {
     // compositor 0.3-1.4 s (measured 2026-10-23). The first keystroke's own
     // GetInitialResultSet auto-starts a cold provider instead: app rows are
     // in-memory and stay instant, provider rows land when the provider is up.
+    WebOpen::warm();
     SearchBackend::init();
 
     for (const auto& monitor : MONITORS) {
