@@ -416,7 +416,10 @@ void COverview::close() {
 
     if (!closeOnWindow && (!SELECTEDWORKSPACE || SELECTEDWORKSPACE == pMonitor->m_activeWorkspace)) {
         const auto FOCUSEDWINDOW = getOverviewWindowToShow(Desktop::focusState()->window());
-        if (!SELECTEDWORKSPACE || (FOCUSEDWINDOW && FOCUSEDWINDOW->m_workspace == SELECTEDWORKSPACE))
+        // Only a window on this monitor: another's would pull its workspace here.
+        // docs/manual.md#the-overview-closes-on-its-own-monitor
+        if (FOCUSEDWINDOW && FOCUSEDWINDOW->m_workspace && FOCUSEDWINDOW->m_workspace->m_monitor == pMonitor &&
+            (!SELECTEDWORKSPACE || FOCUSEDWINDOW->m_workspace == SELECTEDWORKSPACE))
             closeOnWindow = FOCUSEDWINDOW;
     }
 
@@ -540,7 +543,8 @@ void COverview::close() {
         *viewOffset = Vector2D{};
     } else {
 
-        if (closeOnWindow->m_workspace != pMonitor->m_activeWorkspace)
+        // Never move another monitor's workspace onto this one.
+        if (closeOnWindow->m_workspace != pMonitor->m_activeWorkspace && closeOnWindow->m_workspace->m_monitor == pMonitor)
             pMonitor->changeWorkspace(closeOnWindow->m_workspace, false, true, true);
 
         if (!BYSTANDER)
