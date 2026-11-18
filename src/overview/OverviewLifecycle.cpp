@@ -261,6 +261,8 @@ COverview::COverview(PHLWORKSPACE startedOn_, bool swipe_, PHLMONITOR monitor_) 
 
     mouseButtonHook = Event::bus()->m_events.input.mouse.button.listen([this](IPointer::SButtonEvent a0, Event::SCallbackInfo& a1) { onMouseButton(a0, a1); });
     touchDownHook   = Event::bus()->m_events.input.touch.down.listen([this](ITouch::SDownEvent a0, Event::SCallbackInfo& a1) { onCursorSelect(a0, a1); });
+    touchUpHook     = Event::bus()->m_events.input.touch.up.listen([this](ITouch::SUpEvent a0, Event::SCallbackInfo& a1) { onTouchUp(a0, a1); });
+    touchCancelHook = Event::bus()->m_events.input.touch.cancel.listen([this](ITouch::SCancelEvent a0, Event::SCallbackInfo& a1) { onTouchCancel(a0, a1); });
 
     windowOpenHook      = Event::bus()->m_events.window.open.listen([this](PHLWINDOW a0) { onWindowOpen(a0); });
     windowCloseHook     = Event::bus()->m_events.window.close.listen([this](PHLWINDOW a0) { onWindowClose(a0); });

@@ -1008,7 +1008,10 @@ class COverview : public IOverview {
 
     // event handlers -- moved out of the constructor, defined at the bottom of Overview.cpp
     void onMouseMove(Vector2D, Event::SCallbackInfo& info);
-    void onTouchMove(ITouch::SMotionEvent, Event::SCallbackInfo& info);
+    void onTouchMove(ITouch::SMotionEvent e, Event::SCallbackInfo& info);
+    void onTouchUp(ITouch::SUpEvent e, Event::SCallbackInfo& info);
+    void onTouchCancel(ITouch::SCancelEvent e, Event::SCallbackInfo& info);
+    void endTouch(bool tap);
     void onMouseButton(IPointer::SButtonEvent event, Event::SCallbackInfo& info);
     void onCursorSelect(ITouch::SDownEvent, Event::SCallbackInfo& info);
     void onMouseAxis(IPointer::SAxisEvent e, Event::SCallbackInfo& info);
@@ -1024,6 +1027,17 @@ class COverview : public IOverview {
     CHyprSignalListener             mouseButtonHook;
     CHyprSignalListener             touchMoveHook;
     CHyprSignalListener             touchDownHook;
+    CHyprSignalListener             touchUpHook;
+    CHyprSignalListener             touchCancelHook;
+
+    // The one finger the overview follows. docs/manual.md#tapping-in-hyprdrive
+    struct {
+        bool     active  = false;
+        int32_t  id      = 0;
+        Vector2D start;
+        Vector2D last;
+        bool     swiping = false;
+    } touchTrack;
     CHyprSignalListener             mouseAxisHook;
     CHyprSignalListener             windowOpenHook;
     CHyprSignalListener             windowCloseHook;

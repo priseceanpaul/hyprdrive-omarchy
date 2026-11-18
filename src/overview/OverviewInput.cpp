@@ -236,13 +236,56 @@ void COverview::onMouseMove(Vector2D, Event::SCallbackInfo& info) {
 
 }
 
-void COverview::onTouchMove(ITouch::SMotionEvent, Event::SCallbackInfo& info) {
+void COverview::onTouchMove(ITouch::SMotionEvent e, Event::SCallbackInfo& info) {
         if (closing || scrollOverviewAt(g_pInputManager->getMouseCoordsInternal()).get() != this)
             return;
 
-        info.cancelled    = true;
-        lastMousePosLocal = getOverviewMousePosLocal(pMonitor.lock());
+        info.cancelled = true;
+        const auto PMONITOR = pMonitor.lock();
+        if (touchTrack.active && e.touchID == touchTrack.id && PMONITOR) {
+            // The tracked finger drives the cursor and, past 24 px sideways, the pad's swipe.
+            // docs/manual.md#tapping-in-hyprdrive
+            Pointer::pointerController()->warpTo(PMONITOR->m_position + e.pos * PMONITOR->m_size, true);
+            const Vector2D POS  = getOverviewMousePosLocal(PMONITOR);
+            const Vector2D STEP = POS - touchTrack.last;
+            touchTrack.last     = POS;
+            if (!touchTrack.swiping && std::abs(POS.x - touchTrack.start.x) > 24.0 && std::abs(POS.x - touchTrack.start.x) > std::abs(POS.y - touchTrack.start.y)) {
+                onWorkspaceSwipeBegin();
+                touchTrack.swiping = true;
+            }
+            if (touchTrack.swiping) {
+                const float PITCH = getWorkspaceLogicalPitch(PMONITOR, std::max<float>(scale->value(), 0.01F), layout);
+                const float DIST  = std::max(80.F, sc<float>(Hyprdrive::Config::getGestureDistance()));
+                onWorkspaceSwipeUpdate(-STEP.x * DIST / PITCH);
+            }
+        }
+        lastMousePosLocal = getOverviewMousePosLocal(PMONITOR);
         requestInputFrame();
+}
+
+void COverview::endTouch(bool tap) {
+        const bool SWIPING = touchTrack.swiping;
+        touchTrack         = {};
+        if (closing)
+            return;
+        if (SWIPING)
+            onWorkspaceSwipeEnd();
+        else if (tap)
+            performPrimaryClickAction();
+}
+
+void COverview::onTouchUp(ITouch::SUpEvent e, Event::SCallbackInfo& info) {
+        if (!touchTrack.active || e.touchID != touchTrack.id)
+            return;
+        info.cancelled = true;
+        endTouch(true);
+}
+
+void COverview::onTouchCancel(ITouch::SCancelEvent, Event::SCallbackInfo& info) {
+        if (!touchTrack.active)
+            return;
+        info.cancelled = true;
+        endTouch(false);
 }
 
 void COverview::onMouseButton(IPointer::SButtonEvent event, Event::SCallbackInfo& info) {
@@ -704,7 +747,10 @@ void COverview::onCursorSelect(ITouch::SDownEvent e, Event::SCallbackInfo& info)
 
         info.cancelled = true;
 
-        performPrimaryClickAction();
+        // A tap acts on release; a second finger is ignored. docs/manual.md#tapping-in-hyprdrive
+        if (touchTrack.active)
+            return;
+        touchTrack = {true, e.touchID, getOverviewMousePosLocal(pMonitor.lock()), getOverviewMousePosLocal(pMonitor.lock()), false};
 }
 
 void COverview::onMouseAxis(IPointer::SAxisEvent e, Event::SCallbackInfo& info) {
