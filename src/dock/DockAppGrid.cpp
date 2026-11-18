@@ -48,7 +48,7 @@ void renderAppDots(PHLMONITOR monitor, const std::vector<SItem>& items, float al
 // the dock, so renderMenu runs; with no pill there is nowhere to draw it.
 bool openMenuFor(PHLMONITOR monitor, const SItem& item, const CBox& anchor) {
     closeMenu();
-    if (!monitor || item.desktopId.empty() || layout(monitor).pill.empty())
+    if (!monitor || (item.desktopId.empty() && item.wmClass.empty()) || layout(monitor).pill.empty())
         return false;
     g_menu = SMenu{.monitor = monitor->m_id, .item = item, .anchor = anchor, .floating = true, .box = {}, .rows = buildRows(item, monitor)};
     return true;

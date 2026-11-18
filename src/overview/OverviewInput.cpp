@@ -649,10 +649,22 @@ void COverview::onMouseButton(IPointer::SButtonEvent event, Event::SCallbackInfo
                 return;
             }
 
+            const auto TILE = resize.pendingWindow.lock();
             resize.pointerDown = false;
             resize.pendingWindow.reset();
 
-            shouldRunDefaultClickAction(event.button);
+            // A still right-click opens the dock's menu for the tile's app. NixOs-dots docs/manual.md#the-tile-menu
+            const bool PENDING = submapMouseClickPending && submapMouseClickButton == event.button;
+            clearSubmapMouseClickPending();
+            if (!(PENDING && dispatchSubmapMouseClick(event.button)) && TILE) {
+                const auto MON = pMonitor.lock();
+                const auto CLASS = AppSearch::identityClass(TILE->m_class, TILE->m_title);
+                auto       item  = Hyprdrive::Dock::appItems({AppSearch::idForClass(CLASS)}).front();
+                item.wmClass     = CLASS; // the dock's key for an app with no desktop entry
+                item.running     = true;
+                if (Hyprdrive::Dock::openMenuFor(MON, item, CBox{lastMousePosLocal, {1, 1}}))
+                    damage();
+            }
             return;
         }
 
