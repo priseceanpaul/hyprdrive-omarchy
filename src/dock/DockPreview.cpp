@@ -277,6 +277,15 @@ static bool plateGone(const SPlateTravel& plate) {
     return plate.out && plateT(plate) >= 1.F;
 }
 
+// The hovered preview, held while the pointer is on its close button even past
+// the cell's edge. NixOs-dots docs/manual.md#preview-close-buttons
+struct SPreviewClose {
+    PHLWINDOWREF window;
+    CBox         cell;
+    CBox         hit;
+};
+SPreviewClose g_previewClose;
+
 // [FLIGHT] dismissHoverPanelNow moved out of the anonymous namespace -- the
 // flight module calls it across a TU boundary now -- and is defined below,
 // where this anonymous block closes. g_hover / g_tip stay here.
@@ -285,6 +294,7 @@ static bool plateGone(const SPlateTravel& plate) {
 void forgetPanelGeometry() {
     g_hover.drawn = CBox{};
     g_hover.cells.clear();
+    g_previewClose = {};
 }
 
 // Y1. Inside the plate that is actually on screen -- and not while it is
@@ -298,7 +308,9 @@ bool panelOn(const PHLMONITOR& monitor) {
 }
 
 bool panelContains(const PHLMONITOR& monitor, const Vector2D& point) {
-    return panelOn(monitor) && !g_hover.panel->out && g_hover.drawn.width >= 1 && g_hover.drawn.height >= 1 && g_hover.drawn.containsPoint(point);
+    if (!panelOn(monitor) || g_hover.panel->out || g_hover.drawn.width < 1 || g_hover.drawn.height < 1)
+        return false;
+    return g_hover.drawn.containsPoint(point) || (g_previewClose.window && g_previewClose.hit.containsPoint(point));
 }
 
 // Y2. The preview cell under the pointer and the window in it. The BOX comes
@@ -307,6 +319,10 @@ bool panelContains(const PHLMONITOR& monitor, const Vector2D& point) {
 std::optional<std::pair<CBox, PHLWINDOW>> panelCellAt(const PHLMONITOR& monitor, const Vector2D& point) {
     if (!panelOn(monitor))
         return std::nullopt;
+
+    // The held preview first: its button overhangs into the gap and its neighbour.
+    if (const auto HELD = g_previewClose.window.lock(); HELD && g_previewClose.hit.containsPoint(point))
+        return std::make_pair(g_previewClose.cell, HELD);
 
     for (const auto& [BOX, REF] : g_hover.cells) {
         if (!BOX.containsPoint(point))
@@ -836,6 +852,12 @@ void renderHoverPreview(PHLMONITOR monitor, const SLayout& layout, const CBox& a
 
     const auto  MOUSE      = (g_pInputManager->getMouseCoordsInternal() - monitor->m_position) * monitor->m_scale;
 
+    // Last frame's held preview; this frame's is chosen below and drawn after
+    // every cell, so no neighbour paints over the overhang.
+    const auto HELD     = g_previewClose.window.lock();
+    const bool ONHELD   = HELD && !g_hover.panel->out && g_previewClose.hit.containsPoint(MOUSE);
+    SPreviewClose hovered;
+
     const float BLOCKH = NROWS * CELLH + (NROWS - 1.F) * CGAP * FIT;
     float       y      = sc<float>(DRAWN.y) + (sc<float>(DRAWN.height) - BLOCKH) / 2.F;
     size_t      row = 0, inRow = 0;
@@ -856,7 +878,10 @@ void renderHoverPreview(PHLMONITOR monitor, const SLayout& layout, const CBox& a
         CBox cell{std::round(x), std::round(y), std::round(WIDTH), std::round(CELLH)};
         // Its own menu open keeps its ring lit: the menu is for THIS preview.
         const bool SCOPED = g_menu && g_menu->windowScope && g_menu->scope.lock() == WINDOW;
-        drawPreviewCell(monitor, WINDOW, cell, ALPHA, 1.F, INNERL, !g_hover.panel->out && (cell.containsPoint(MOUSE) || SCOPED), g_hover.panel->scratchpadName.empty(), 0xD0, now);
+        const bool HOT = !g_hover.panel->out && (ONHELD ? WINDOW == HELD : cell.containsPoint(MOUSE));
+        if (HOT)
+            hovered = {WINDOW, cell, TileChrome::closeDiscHit(cell, SCALE)};
+        drawPreviewCell(monitor, WINDOW, cell, ALPHA, 1.F, INNERL, HOT || (!g_hover.panel->out && SCOPED), g_hover.panel->scratchpadName.empty(), 0xD0, now);
         g_hover.cells.emplace_back(cell, PHLWINDOWREF{WINDOW});
 
         x += WIDTH + CGAP * FIT;
@@ -866,6 +891,11 @@ void renderHoverPreview(PHLMONITOR monitor, const SLayout& layout, const CBox& a
             y += CELLH + CGAP * FIT;
         }
     }
+
+    // The overview tile's close button, on the hovered preview's corner.
+    g_previewClose = hovered;
+    if (hovered.window)
+        TileChrome::renderCloseButton(TileChrome::closeDisc(hovered.cell, SCALE), SCALE, ALPHA);
 }
 
 // THE ROW'S PREVIEW (user, 2026-11-11: "if I hover over a context menu row for
@@ -1304,6 +1334,22 @@ bool panelClick(PHLMONITOR monitor, const Vector2D& point, bool release) {
 
     if (!panelContains(monitor, point))
         return false;
+
+    // A press on a preview's close button closes on release over it, never goes
+    // to the window. NixOs-dots docs/manual.md#preview-close-buttons
+    static PHLWINDOWREF s_closePress;
+    const auto          CLOSECELL = panelCellAt(monitor, point);
+    const bool          ONCLOSE   = CLOSECELL && TileChrome::closeDiscHit(CLOSECELL->first, monitor->m_scale).containsPoint(point);
+    if (!release && ONCLOSE) {
+        s_closePress = CLOSECELL->second;
+        return true;
+    }
+    if (release && s_closePress) {
+        if (ONCLOSE && CLOSECELL->second == s_closePress.lock())
+            CLOSECELL->second->sendClose();
+        s_closePress.reset();
+        return true;
+    }
 
     if (!release) {
         // Record what it would take to tear this preview out. NOTHING is

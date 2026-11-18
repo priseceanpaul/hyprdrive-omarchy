@@ -529,6 +529,23 @@ void render(PHLMONITOR monitor, const PHLWINDOW& window, const CBox& tileBox, fl
     if (ALPHA <= 0.F)
         return;
 
+    renderCloseButton(BUTTON, SCALE, ALPHA);
+}
+
+// The tile's disc on any box's top-right corner, and its hit area with slop.
+// NixOs-dots docs/manual.md#preview-close-buttons
+CBox closeDisc(const CBox& box, float scale) {
+    return closeButtonDisc(box, std::max(scale, 0.01F));
+}
+
+CBox closeDiscHit(const CBox& box, float scale) {
+    return closeDisc(box, scale).expand(CLOSE_SLOP * std::max(scale, 0.01F));
+}
+
+void renderCloseButton(const CBox& BUTTON, float SCALE, float ALPHA) {
+    if (BUTTON.empty() || ALPHA <= 0.F)
+        return;
+
     const int ROUND = sc<int>(std::round(BUTTON.w / 2.0));
 
     // X56. The RING is Hyprland's -- size from general:border_size, colour from

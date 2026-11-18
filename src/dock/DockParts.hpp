@@ -68,6 +68,7 @@
 #include "DockTilt.hpp"
 #include "Locations.hpp"
 #include "Minimize.hpp"
+#include "TileChrome.hpp"
 #include "OverviewPassElement.hpp"
 #include "OverviewRender.hpp"
 #include "Window.hpp"

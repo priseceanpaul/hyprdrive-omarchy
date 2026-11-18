@@ -62,6 +62,12 @@ CBox closeButtonBox(const PHLWINDOW& window, const CBox& tileBox, float monitorS
 // two different shapes -- which is the exact defect X55 fixed for the close-X.
 CBox closeButtonHitBox(const PHLWINDOW& window, const CBox& tileBox, float monitorScale);
 
+// The same button for other surfaces: its disc on `box`'s corner, its hit area,
+// and the draw. NixOs-dots docs/manual.md#preview-close-buttons
+CBox closeDisc(const CBox& box, float scale);
+CBox closeDiscHit(const CBox& box, float scale);
+void renderCloseButton(const CBox& button, float scale, float alpha);
+
 // App icon (X8) + close button, drawn over an already-rendered tile.
 // Hover captions are queued here and flushed by renderCaptions() AFTER the
 // dock, so a title sitting under a bottom-of-card window is not buried.
