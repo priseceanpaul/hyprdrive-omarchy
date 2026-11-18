@@ -118,6 +118,7 @@ using namespace Hyprutils::String;
 #include "SpringLoad.hpp"
 #include "HotCorner.hpp"
 #include "Ripple.hpp"
+#include "KeyboardOwner.hpp"
 #include "BorderFade.hpp"
 
 typedef void (*origSendWindowSize)(void*, bool);

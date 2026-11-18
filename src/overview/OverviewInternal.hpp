@@ -108,6 +108,7 @@ inline bool arrangeLayoutBefore(const PHLWINDOW& l, const PHLWINDOW& r) {
 #include <hyprutils/string/Numeric.hpp>
 #undef protected
 #undef private
+#include "KeyboardOwner.hpp"
 #include "Config.hpp"
 #include "Dock.hpp"
 #include "DropIndicator.hpp"
@@ -347,7 +348,7 @@ inline void stealOverviewKeyboard() {
     // The lock screen holds the keyboard; nothing of ours takes it away.
     if (hyprdriveSessionLocked())
         return;
-    if (g_pSeatManager)
+    if (g_pSeatManager && !layerOwnsKeyboard())
         g_pSeatManager->setKeyboardFocus(nullptr);
     releasePointerLocks();
 }

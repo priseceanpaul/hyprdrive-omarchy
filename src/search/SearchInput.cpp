@@ -1,4 +1,5 @@
 #include "PluginParts.hpp"
+#include "KeyboardOwner.hpp"
 using namespace PluginDetail;
 
 static constexpr uint32_t EVDEV_KEY_ESC       = 1;
@@ -48,8 +49,9 @@ xkb_state* overviewActiveXkbState() {
 }
 
 namespace PluginDetail {
+// Not while a menu or bar popup holds the keys. docs/manual.md#the-menu-over-hyprdrive
 bool overviewAcceptsSearch() {
-    return std::ranges::any_of(scrollOverviews(), [](const auto& overview) { return overview && !overview->isClosing(); });
+    return !layerOwnsKeyboard() && std::ranges::any_of(scrollOverviews(), [](const auto& overview) { return overview && !overview->isClosing(); });
 }
 
 // A sequence half-typed when the overview closes, or when ESC/BACKSPACE cuts it
