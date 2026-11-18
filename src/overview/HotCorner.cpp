@@ -59,6 +59,7 @@ namespace Hyprdrive::HotCorner {
     namespace {
         constexpr const char* KEY_ENABLED = "plugin:hyprdrive:hot_corner:enabled";
         constexpr const char* KEY_CORNER  = "plugin:hyprdrive:hot_corner:corner";
+        constexpr const char* KEY_CORNER2 = "plugin:hyprdrive:hot_corner:corner2";
         constexpr const char* KEY_DELAY   = "plugin:hyprdrive:hot_corner:delay_ms";
         constexpr const char* KEY_RIPPLE  = "plugin:hyprdrive:hot_corner:ripple";
 
@@ -92,6 +93,23 @@ namespace Hyprdrive::HotCorner {
                 return M;
             }
             return nullptr;
+        }
+
+        // The corner the pointer is in, of the two the settings name, and its screen.
+        struct SCornerHit {
+            PHLMONITOR monitor;
+            ECorner    corner;
+        };
+        SCornerHit cornerHit(const Vector2D& point) {
+            for (const char* KEY : {KEY_CORNER, KEY_CORNER2}) {
+                const auto NAME = Config::getValue<std::string>(KEY);
+                if (NAME.empty())
+                    continue;
+                const auto CORNER = cornerFromName(NAME);
+                if (const auto M = cornerMonitor(point, CORNER))
+                    return {M, CORNER};
+            }
+            return {nullptr, ECorner{}};
         }
 
         bool pointerLocked() {
@@ -172,13 +190,12 @@ namespace Hyprdrive::HotCorner {
             if (!Config::getValue<bool>(KEY_ENABLED) || !g_pInputManager)
                 return 0;
             const auto POINT   = g_pInputManager->getMouseCoordsInternal();
-            const auto CORNER  = cornerFromName(Config::getValue<std::string>(KEY_CORNER));
-            const auto MONITOR = cornerMonitor(POINT, CORNER);
-            if (!MONITOR || blocked(MONITOR, POINT))
+            const auto HIT = cornerHit(POINT);
+            if (!HIT.monitor || blocked(HIT.monitor, POINT))
                 return 0;
             g_latched = true;
             if (Config::getValue<bool>(KEY_RIPPLE))
-                Ripple::trigger(MONITOR, cornerPoint(MONITOR, CORNER));
+                Ripple::trigger(HIT.monitor, cornerPoint(HIT.monitor, HIT.corner));
             toggleOverview();
             return 0;
         }
@@ -190,7 +207,8 @@ namespace Hyprdrive::HotCorner {
                 return;
             }
             const auto POINT   = g_pInputManager->getMouseCoordsInternal();
-            const auto MONITOR = cornerMonitor(POINT, cornerFromName(Config::getValue<std::string>(KEY_CORNER)));
+            const auto HIT     = cornerHit(POINT);
+            const auto MONITOR = HIT.monitor;
             if (!MONITOR) {
                 cancel();
                 g_latched = false;

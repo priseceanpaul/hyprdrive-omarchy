@@ -384,6 +384,10 @@ static void registerConfigValuesFor() {
     addKey(makeShared<CStringValue>(KEY("hot_corner:corner"),
                                     "the hot corner: top-left, top-right, bottom-left or bottom-right (an outer corner only; between two monitors the pointer crosses)",
                                     Hyprlang::STRING{"top-left"}));
+    // A second corner, on another screen's outer edge (NixOS dots, docs/manual.md#the-hot-corner): empty = none.
+    addKey(makeShared<CStringValue>(KEY("hot_corner:corner2"),
+                                    "a second hot corner, as hot_corner:corner: the outer corner of another screen; empty = none",
+                                    Hyprlang::STRING{""}));
     addKey(makeShared<CIntValue>(KEY("hot_corner:delay_ms"), "how long the pointer rests in the hot corner before the overview opens", 150,
                                  SIntValueOptions{.min = 0, .max = 2000}));
     addKey(makeShared<CBoolValue>(KEY("hot_corner:ripple"), "the hot corner sends a ripple across the screen from the corner, bending what is under it", true));
