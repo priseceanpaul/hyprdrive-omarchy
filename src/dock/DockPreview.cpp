@@ -1162,7 +1162,7 @@ static bool panelBridgeContains(const PHLMONITOR& monitor, const Vector2D& point
 }
 
 bool occupiesPointer(PHLMONITOR monitor, const Vector2D& point) {
-    if (!monitor)
+    if (!monitor || g_pInputManager->isLocked())
         return false;
     return pillContains(monitor, point) || panelContains(monitor, point) || panelBridgeContains(monitor, point) || menuContains(monitor, point) ||
         Stacks::contains(monitor, point);

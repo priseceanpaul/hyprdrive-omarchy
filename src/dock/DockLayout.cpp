@@ -421,7 +421,9 @@ void updateAutohide(PHLMONITOR monitor, const STally& tally) {
 
     const auto BOX   = monitor->logicalBox();
     const auto POINT = g_pInputManager->getMouseCoordsInternal();
-    const bool ATEDGE = BOX.containsPoint(POINT) && POINT.y >= BOX.y + BOX.h - REVEAL_BAND;
+    // A game that locked the pointer is aiming, not reaching for the dock.
+    // NixOs-dots docs/manual.md#dock-under-a-locked-pointer
+    const bool ATEDGE = !g_pInputManager->isLocked() && BOX.containsPoint(POINT) && POINT.y >= BOX.y + BOX.h - REVEAL_BAND;
 
     if (R.shown) {
         // Up already: it stays up while the pointer is on it, or while its
