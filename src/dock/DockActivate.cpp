@@ -723,6 +723,15 @@ void activateItem(PHLMONITOR monitor, const SItem& item, bool shift, bool ctrl =
     launchApp(monitor, item);
 }
 
+// A middle click that launches opens the app on this monitor's empty desktop.
+// NixOs-dots docs/manual.md#middle-click-opens-a-new-workspace
+void launchMiddle(PHLMONITOR monitor, const SItem& item) {
+    if (item.stack || item.scratchpad)
+        launchApp(monitor, item);
+    else
+        launchInEmptyWorkspace(monitor, item);
+}
+
 // X33. `middle-click-action` and `shift-middle-click-action`, both `launch` in
 // the reference.
 //
@@ -754,12 +763,12 @@ void applyClickAction(PHLMONITOR monitor, const SItem& item, const std::string& 
     const auto WINDOWS = itemWindows(item);
 
     if (WINDOWS.empty()) {
-        launchApp(monitor, item);
+        launchMiddle(monitor, item);
         return;
     }
 
     if (action == "launch")
-        launchApp(monitor, item);
+        launchMiddle(monitor, item);
     else if (action == "minimize")
         activateItem(monitor, item, shift);
     else if (action == "cycle-windows")
