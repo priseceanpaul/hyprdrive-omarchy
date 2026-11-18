@@ -3,6 +3,7 @@
 #include "OverviewParts.hpp"
 #include "Rows.hpp"
 #include "Ripple.hpp"
+#include <hyprland/src/managers/EventManager.hpp>
 
 using namespace OverviewDetail;
 
@@ -73,6 +74,18 @@ static bool currentBindIsWheel() {
         return false;
     const auto& KEY = g_pKeybindManager->m_currentKeybind->key;
     return KEY == "mouse_up" || KEY == "mouse_down" || KEY == "mouse_left" || KEY == "mouse_right";
+}
+
+// NixOS dots: how far open, on the event socket every tick, so the shell's bar
+// moves with the overview. docs/manual.md#the-bar-under-the-fingers
+static void postOpenness(float scale) {
+    static std::string last;
+    const float RANGE = std::max(0.01F, std::abs(1.F - Hyprdrive::Config::getScale()));
+    auto        now   = std::format("{:.3f}", std::clamp(std::abs(1.F - scale) / RANGE, 0.F, 1.F));
+    if (now == last || !g_pEventManager)
+        return;
+    last = now;
+    g_pEventManager->postEvent(SHyprIPCEvent{.event = "hyprdriveopenness", .data = std::move(now)});
 }
 
 COverview::COverview(PHLWORKSPACE startedOn_, bool swipe_, PHLMONITOR monitor_) : startedOn(startedOn_), swipe(swipe_) {
@@ -204,7 +217,10 @@ COverview::COverview(PHLWORKSPACE startedOn_, bool swipe_, PHLMONITOR monitor_) 
     Animation::mgr()->createAnimation(0.F, altStripsReveal, searchAnimConfig, AVARDAMAGE_NONE);
     syncPluginAnimEnabled();
 
-    scale->setUpdateCallback([this](auto) { damage(); });
+    scale->setUpdateCallback([this](auto) {
+        damage();
+        postOpenness(scale->value());
+    });
     viewOffset->setUpdateCallback([this](auto) { damage(); });
     workspaceInsertProgress->setUpdateCallback([this](auto) { damage(); });
     workspaceInsertFadeProgress->setUpdateCallback([this](auto) { damage(); });
