@@ -85,6 +85,8 @@ HOT_CORNERS = [
     {"value": "bottom-left", "label": "Bottom left"},
     {"value": "bottom-right", "label": "Bottom right"},
 ]
+# A second corner, on another screen: none, or any of the four. docs/manual.md#the-hot-corner
+HOT_CORNERS_SECOND = [{"value": "", "label": "None"}] + HOT_CORNERS
 FADES = [
     {"value": "early", "label": "Early"},
     {"value": "full", "label": "Full"},
@@ -154,6 +156,7 @@ KEY_META = [
     _k(PLUGIN + "focus_follows_pick", "bool", "overview", False),
     _k(PLUGIN + "hot_corner:enabled", "bool", "overview", False),
     _k(PLUGIN + "hot_corner:corner", "enum", "overview", "top-left", options=HOT_CORNERS),
+    _k(PLUGIN + "hot_corner:corner2", "enum", "overview", "", options=HOT_CORNERS_SECOND),
     _k(PLUGIN + "hot_corner:delay_ms", "int", "overview", 150, min=0, max=1000),
     _k(PLUGIN + "hot_corner:ripple", "bool", "overview", True),
     _k(PLUGIN + "drag:hold_to_swap", "bool", "overview", True),

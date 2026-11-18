@@ -76,6 +76,8 @@ var sections = [
           desc: "Rest the pointer in a screen corner to open the overview, and again to close it, without touching the keyboard." },
         { type: "choice", key: P + "hot_corner:corner", label: "Corner", when: "hotCornerOn",
           desc: "Only a corner at the outside edge of your screens counts. The top left is also Omarchy's menu button: a click there still opens the menu." },
+        { type: "choice", key: P + "hot_corner:corner2", label: "Second corner", when: "hotCornerOn",
+          desc: "A corner of another screen's outside edge, for a layout with screens side by side. None for no second corner." },
         { type: "slider", key: P + "hot_corner:delay_ms", label: "Rest time", min: 0, max: 1000, step: 50, unit: "ms", when: "hotCornerOn",
           desc: "How long the pointer rests in the corner before the overview opens." },
         { type: "toggle", key: P + "hot_corner:ripple", label: "Ripple", when: "hotCornerOn",
