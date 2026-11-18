@@ -73,7 +73,7 @@ struct SSearchLayoutInputs {
     float                          nudge = 0.F; // pillNudge->value(): rendered px the pill is lifted for a strip label
     float                          band = 0.F;  // X21/X23: resultsBand->value()
     float                          width = 0.F; // animated container width
-    float                          colW[3] = {};
+    float                          colW[4] = {};
     float                          inspectorW = SEARCH_INSP_WL;
     // The published pill row is kept, not recomputed, when the pill culls: that
     // frame has no answer of its own and the grid must not be told it does.
@@ -316,9 +316,9 @@ static SSearchLayout layoutSearch(const SSearchLayoutInputs& IN, const std::vect
     const float ROW_HL   = 32.F;
     const float ROW_GAPL = 4.F;
 
-    const SSearchSection* sectionByCol[3] = {};
+    const SSearchSection* sectionByCol[4] = {};
     for (const auto& sec : SECTIONS) {
-        if (sec.column >= 0 && sec.column < 3)
+        if (sec.column >= 0 && sec.column < 4)
             sectionByCol[sec.column] = &sec;
     }
 
@@ -328,7 +328,7 @@ static SSearchLayout layoutSearch(const SSearchLayoutInputs& IN, const std::vect
 
     float colX        = CONTAINER_XL + PAD_L;
     int   drawn       = 0;
-    for (int c = 0; c < 3; ++c) {
+    for (int c = 0; c < 4; ++c) {
         const float COL_WL = IN.colW[c];
         if (COL_WL < SEARCH_COL_HIDE_WL)
             continue;
@@ -355,7 +355,7 @@ static SSearchLayout layoutSearch(const SSearchLayoutInputs& IN, const std::vect
         cardOut.icon  = SECTION->icon;
         cardOut.more  = SECTION->total > SECTION->rows.size() ? SECTION->total - SECTION->rows.size() : 0;
         if (SECTION->rows.empty())
-            cardOut.emptyHint = (c == 1 && SearchBackend::fileSearchBusy()) ? "Searching…" : "No items";
+            cardOut.emptyHint = ((c == 1 || c == 2) && SearchBackend::fileSearchBusy()) ? "Searching…" : "No items";
 
         for (size_t n = 0; n < SECTION->rows.size(); ++n) {
             const size_t I      = SECTION->rows[n];
@@ -1393,7 +1393,7 @@ void COverview::renderSearch(PHLMONITOR monitor, float renderScale) {
         .nudge       = pillNudge->value(),
         .band        = resultsBand->value(),
         .width       = resultsWidth->value(),
-        .colW        = {COL_TGT.col[0], COL_TGT.col[1], COL_TGT.col[2]},
+        .colW        = {COL_TGT.col[0], COL_TGT.col[1], COL_TGT.col[2], COL_TGT.col[3]},
         .inspectorW  = COL_TGT.inspector,
         .rowLCarry   = searchLayoutHere().rowL,
         .query       = g_search.query.text,

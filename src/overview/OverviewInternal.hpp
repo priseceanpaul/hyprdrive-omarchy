@@ -729,26 +729,21 @@ inline std::vector<SSearchRow> overviewSearchRowsLive() {
     rows.insert(rows.end(), std::make_move_iterator(menuRows.begin()), std::make_move_iterator(menuRows.end()));
 
     // ------------------------------------------------------------------------
-    // COLUMN 1: FILES & FOLDERS (Omarchy Find Index)
+    // COLUMNS 1 & 2: FILES, then FOLDERS (Omarchy Find Index)
     // ------------------------------------------------------------------------
     if (!MENU_BROWSE) {
-        if (Q.empty()) {
-            for (const auto& f : SearchBackend::recentFiles()) {
-                rows.push_back({f.name, f.description, f.icon, "", nullptr, {}, f, 1});
-            }
-        } else {
-            for (const auto& f : SearchBackend::fileResults()) {
-                rows.push_back({f.name, f.description, f.icon, "", nullptr, {}, f, 1});
-            }
-        }
+        // categorizeFile() marks directories; each keeps its rank in its own column.
+        const auto FILECOL = [](const SearchBackend::SSearchItem& f) { return f.fileTypeStr == "Folder" ? 2 : 1; };
+        for (const auto& f : Q.empty() ? SearchBackend::recentFiles() : SearchBackend::fileResults())
+            rows.push_back({f.name, f.description, f.icon, "", nullptr, {}, f, FILECOL(f)});
     }
 
     // ------------------------------------------------------------------------
-    // COLUMN 2: AI AGENTS & TOOLS
+    // COLUMN 3: AI AGENTS & TOOLS
     // ------------------------------------------------------------------------
     if (!Q.empty()) {
         if (const auto calc = SearchBackend::evaluateCalculator(Q); calc) {
-            rows.push_back({calc->name, calc->description, calc->icon, "", nullptr, {}, *calc, 2});
+            rows.push_back({calc->name, calc->description, calc->icon, "", nullptr, {}, *calc, 3});
         }
     }
 
@@ -764,7 +759,7 @@ inline std::vector<SSearchRow> overviewSearchRowsLive() {
             webItem.icon          = "web-browser";
             webItem.category      = "Web";
             webItem.actionCommand = command;
-            rows.push_back({webItem.name, webItem.description, webItem.icon, "", nullptr, {}, webItem, 2});
+            rows.push_back({webItem.name, webItem.description, webItem.icon, "", nullptr, {}, webItem, 3});
         };
         if (WebOpen::looksLikeUrl(Q))
             webRow("web:open", "Open " + Q, "in Brave", WebOpen::openCommand(Q));
@@ -775,10 +770,10 @@ inline std::vector<SSearchRow> overviewSearchRowsLive() {
 
     if (SearchBackend::isAgentQuery(Q)) {
         for (const auto& item : SearchBackend::searchAgents(Q))
-            rows.push_back({item.name, item.description, item.icon, item.iconFont, nullptr, {}, item, 2});
+            rows.push_back({item.name, item.description, item.icon, item.iconFont, nullptr, {}, item, 3});
     } else if (!Q.empty() && !MENU_BROWSE) {
         for (const auto& item : SearchBackend::promptAllAgents(Q))
-            rows.push_back({item.name, item.description, item.icon, item.iconFont, nullptr, {}, item, 2});
+            rows.push_back({item.name, item.description, item.icon, item.iconFont, nullptr, {}, item, 3});
 
         // The tools, offered for whatever is typed. Activating one rewrites the
         // query into the tool's own syntax, so the panel turns into it.
@@ -791,7 +786,7 @@ inline std::vector<SSearchRow> overviewSearchRowsLive() {
             t.icon          = icon;
             t.category      = "Tools";
             t.actionCommand = std::string(OVERVIEW_QUERY_REWRITE) + rewrite;
-            rows.push_back({t.name, t.description, t.icon, "", nullptr, {}, t, 2});
+            rows.push_back({t.name, t.description, t.icon, "", nullptr, {}, t, 3});
         };
         if (ToolSearch::enabled(ToolSearch::EKind::Define) && std::ranges::count(Q, ' ') <= 3)
             toolRow("tool:define", "Define", "accessories-dictionary", "define " + Q);
@@ -800,31 +795,32 @@ inline std::vector<SSearchRow> overviewSearchRowsLive() {
 
     } else if (!MENU_BROWSE) {
         for (const auto& item : SearchBackend::agentHelpItems())
-            rows.push_back({item.name, item.description, item.icon, item.iconFont, nullptr, {}, item, 2});
+            rows.push_back({item.name, item.description, item.icon, item.iconFont, nullptr, {}, item, 3});
     }
 
     return rows;
 }
 
-// X49. One card per column: Omarchy Menu (0), Files & Folders (1), AI & Tools (2).
+// X49. One card per column: Omarchy Menu (0), Files (1), Folders (2), AI & Tools (3).
 struct SSearchSection {
     std::string         title;
     std::string         icon;
     std::vector<size_t> rows;  // indices into the overviewSearchRows() vector
     size_t              total = 0;
     bool                grid = false;
-    int                 column = 0; // 0, 1, or 2
+    int                 column = 0; // 0 to 3
 };
 
 inline std::vector<SSearchSection> overviewSearchSections(const std::vector<SSearchRow>& rows) {
     std::vector<SSearchSection> out;
     std::string menuTitle = SearchBackend::menuCurrentRouteTitle();
     out.push_back({menuTitle.empty() ? "Omarchy Menu" : menuTitle, "system-run", {}, 0, false, 0});
-    out.push_back({"Files & Folders", "folder", {}, 0, false, 1});
-    out.push_back({"AI & Tools", "utilities-terminal", {}, 0, false, 2});
+    out.push_back({"Files", "text-x-generic", {}, 0, false, 1});
+    out.push_back({"Folders", "folder", {}, 0, false, 2});
+    out.push_back({"AI & Tools", "utilities-terminal", {}, 0, false, 3});
 
     for (size_t i = 0; i < rows.size(); ++i) {
-        int col = std::clamp(rows[i].column, 0, 2);
+        int col = std::clamp(rows[i].column, 0, 3);
         out[sc<size_t>(col)].rows.push_back(i);
     }
 
@@ -1621,11 +1617,11 @@ inline constexpr float SEARCH_DIV_GAPL     = 14.F;
 inline constexpr float SEARCH_INSP_WL      = 280.F;
 inline constexpr float SEARCH_INSP_MID_WL  = 340.F; // 2 result columns
 inline constexpr float SEARCH_INSP_WIDE_WL = 400.F; // 1 result column
-inline constexpr float SEARCH_COL_FLEX[3]  = {1.F, 1.45F, 1.F};
+inline constexpr float SEARCH_COL_FLEX[4]  = {1.F, 1.3F, 1.1F, 1.F};
 inline constexpr float SEARCH_COL_HIDE_WL  = 8.F;
 
 struct SSearchColWidths {
-    float col[3]    = {};
+    float col[4]    = {};
     float inspector = SEARCH_INSP_WL;
     float container = 0.F;
     int   visible   = 0;
@@ -1634,7 +1630,7 @@ struct SSearchColWidths {
 inline uint8_t overviewSearchColMask(const std::vector<SSearchSection>& sections) {
     uint8_t mask = 0;
     for (const auto& sec : sections) {
-        if (!sec.rows.empty() && sec.column >= 0 && sec.column < 3)
+        if (!sec.rows.empty() && sec.column >= 0 && sec.column < 4)
             mask |= static_cast<uint8_t>(1u << sec.column);
     }
     return mask;
@@ -1645,7 +1641,7 @@ inline SSearchColWidths overviewSearchColWidths(float containerWL, uint8_t mask)
     w.container = containerWL;
     int   n    = 0;
     float flex = 0.F;
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < 4; ++i) {
         if (mask & (1u << i)) {
             ++n;
             flex += SEARCH_COL_FLEX[i];
@@ -1672,7 +1668,7 @@ inline SSearchColWidths overviewSearchColWidths(float containerWL, uint8_t mask)
     w.inspector   = insp;
     if (flex <= 0.F)
         return w;
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < 4; ++i) {
         if (mask & (1u << i))
             w.col[i] = inner * (SEARCH_COL_FLEX[i] / flex);
     }

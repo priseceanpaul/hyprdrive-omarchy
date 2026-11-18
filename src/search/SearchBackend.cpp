@@ -1867,6 +1867,9 @@ static void fileWorkerLoop() {
                     line.pop_back();
                 if (line.empty())
                     continue;
+                // fd 10 ends a directory with '/', which left the name empty.
+                if (line.size() > 1 && line.back() == '/')
+                    line.pop_back();
 
                 std::string path = line;
                 size_t slash = path.find_last_of('/');
