@@ -1,3 +1,29 @@
+// NixOS dots: the drag hold draws the window smaller through its animated values, which
+// are protected; opened as Dock.cpp opens them, standard headers first.
+#include <algorithm>
+#include <any>
+#include <array>
+#include <chrono>
+#include <cmath>
+#include <format>
+#include <functional>
+#include <map>
+#include <memory>
+#include <optional>
+#include <string>
+#include <tuple>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <vector>
+#define private public
+#define protected public
+#include <hyprland/src/desktop/view/Window.hpp>
+#undef protected
+#undef private
+// After the block, as FlightController.cpp includes it: the flight's own card shadow.
+#include "OverviewChrome.hpp"
+
 #include "HotCorner.hpp"
 #include "HotCornerModel.hpp"
 
@@ -8,6 +34,7 @@
 #include "Ripple.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 
 #include <hyprland/src/Compositor.hpp>
@@ -20,7 +47,10 @@
 #include <hyprland/src/managers/fullscreen/FullscreenController.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/managers/input/UnifiedWorkspaceSwipeGesture.hpp>
+#include <hyprland/src/helpers/time/Time.hpp>
 #include <hyprland/src/output/Monitor.hpp>
+#include <hyprland/src/render/Renderer.hpp>
+#include <hyprland/src/render/pass/BorderPassElement.hpp>
 #include <hyprland/src/protocols/PointerConstraints.hpp>
 #include <hyprland/src/state/MonitorState.hpp>
 
@@ -32,7 +62,7 @@ namespace Hyprdrive::HotCorner {
         constexpr const char* KEY_DELAY   = "plugin:hyprdrive:hot_corner:delay_ms";
         constexpr const char* KEY_RIPPLE  = "plugin:hyprdrive:hot_corner:ripple";
 
-        CHyprSignalListener g_move, g_button;
+        CHyprSignalListener g_move, g_button, g_dragRender;
         wl_event_source*    g_timer = nullptr;
 
         int  g_buttonsDown = 0;
@@ -172,6 +202,147 @@ namespace Hyprdrive::HotCorner {
             // 0 disarms a wl timer, so "no delay" is the next loop turn.
             wl_event_source_timer_update(g_timer, std::clamp<int>(Config::getValue<int>(KEY_DELAY), 1, 2000));
         }
+
+        // DRAG TO THE TOP (NixOS dots): a window carried near the island's zone opens the island
+        // on its workspaces and shrinks as Hyprdrive's drag does. docs/manual.md#dragging-a-window-to-the-sides
+        constexpr int    DRAG_TICK_MS = 16;
+        constexpr double DRAG_NEAR_PX = 120.0; // logical: how close to the zone opens the island
+        constexpr double DRAG_LEAVE   = 0.45;  // of the monitor's height: further down closes it again
+        wl_event_source* g_dragTimer  = nullptr;
+        bool             g_islandDrag = false; // the island is open on this drag
+        CBox             g_dragBox;            // the monitor it opened on, logical
+        Vector2D         g_dragLast;           // the pointer as last told to the island
+        float            g_miniFrom = 0.F, g_miniTo = 0.F; // 0 full size, 1 mini
+        double           g_dragK    = 0.0; // the island's cell/monitor ratio; 0 until it says, then drag_mini_scale
+        Time::steady_tp  g_miniAt;
+        PHLWINDOWREF     g_dragShrunk; // drawn smaller than its layout says, until restored
+
+        PHLMONITOR islandMonitor(const Vector2D& point, double reach);
+
+        // The window Hyprland's own move bind is carrying, if any.
+        PHLWINDOW movedWindow() {
+            const auto* CTRL = g_layoutManager ? g_layoutManager->dragController().get() : nullptr;
+            if (!CTRL || CTRL->mode() != MBIND_MOVE || g_buttonsDown < 1)
+                return nullptr;
+            const auto TARGET = CTRL->target();
+            return TARGET ? TARGET->window() : nullptr;
+        }
+
+        bool dragBlocked(const PHLMONITOR& monitor) {
+            if (g_pSessionLockManager && g_pSessionLockManager->isSessionLocked())
+                return true;
+            if (overviewUp() || DockDrop::dndInProgress())
+                return true;
+            if (g_pUnifiedWorkspaceSwipe && g_pUnifiedWorkspaceSwipe->isGestureInProgress())
+                return true;
+            return Fullscreen::controller()->hasFullscreen(monitor);
+        }
+
+        // How far to mini, on Hyprdrive's drag_mini_ms and its reflow-style ease.
+        float miniProgress() {
+            const int   MS = Config::getDragMiniMs();
+            const float T  = MS <= 0 ? 1.F : std::clamp(std::chrono::duration<float, std::milli>(Time::steadyNow() - g_miniAt).count() / MS, 0.F, 1.F);
+            return g_miniFrom + (g_miniTo - g_miniFrom) * sc<float>(1.0 - std::pow(1.0 - T, 3.0));
+        }
+        void miniTo(float to) {
+            if (to == g_miniTo)
+                return;
+            g_miniFrom = miniProgress();
+            g_miniTo   = to;
+            g_miniAt   = Time::steadyNow();
+            if (g_dragTimer)
+                wl_event_source_timer_update(g_dragTimer, 1);
+        }
+
+        // Back to the size and place its layout already holds.
+        void dragRestore() {
+            if (const auto WINDOW = g_dragShrunk.lock(); WINDOW && WINDOW->m_realSize && WINDOW->m_realPosition) {
+                g_pHyprRenderer->damageWindow(WINDOW);
+                WINDOW->m_realSize->warp();
+                WINDOW->m_realPosition->warp();
+                g_pHyprRenderer->damageWindow(WINDOW);
+            }
+            g_dragShrunk.reset();
+        }
+
+        void dragStop() {
+            if (g_islandDrag && g_pEventManager)
+                g_pEventManager->postEvent(SHyprIPCEvent{.event = "hyprdriveislanddragend", .data = ""});
+            g_islandDrag = false;
+            g_dragK      = 0.0;
+            g_miniFrom = g_miniTo = 0.F;
+            if (g_dragTimer)
+                wl_event_source_timer_update(g_dragTimer, 0);
+            dragRestore();
+        }
+
+        // Drawn, not laid out: the values move, the goals the drag sets stay, as the dock's tear-out does.
+        void dragShrink(const PHLWINDOW& window, const Vector2D& pointer, float progress, bool damage = true) {
+            if (!window->m_realSize || !window->m_realPosition)
+                return;
+            const Vector2D SIZE = window->m_realSize->goal(), POS = window->m_realPosition->goal();
+            // What lands in a cell, as Hyprdrive sizes its proxy over the strip.
+            const double   MINI  = g_dragK > 0.0 ? g_dragK : Config::getDragMiniScale();
+            const double   SCALE = 1.0 - (1.0 - MINI) * progress;
+            if (damage)
+                g_pHyprRenderer->damageWindow(window);
+            window->m_realSize->m_Value     = SIZE * SCALE;
+            window->m_realPosition->m_Value = pointer - (pointer - POS) * SCALE; // about the pointer: the grab stays put
+            if (damage)
+                g_pHyprRenderer->damageWindow(window);
+            g_dragShrunk = window;
+        }
+
+        int dragFire(void*) {
+            const auto WINDOW = movedWindow();
+            if (!WINDOW || !g_pInputManager) {
+                dragStop();
+                return 0;
+            }
+            const float P = miniProgress();
+            if (P <= 0.F && g_miniTo <= 0.F) {
+                dragRestore();
+                return 0;
+            }
+            dragShrink(WINDOW, g_pInputManager->getMouseCoordsInternal(), P);
+            wl_event_source_timer_update(g_dragTimer, DRAG_TICK_MS);
+            return 0;
+        }
+
+        void dragMove() {
+            const auto WINDOW = movedWindow();
+            if (!WINDOW || !g_pInputManager) {
+                if (g_islandDrag || g_dragShrunk)
+                    dragStop();
+                return;
+            }
+            const auto POINT = g_pInputManager->getMouseCoordsInternal();
+
+            if (!g_islandDrag) {
+                const auto MONITOR = islandMonitor(POINT, DRAG_NEAR_PX);
+                if (!MONITOR || dragBlocked(MONITOR) || !g_pEventManager)
+                    return;
+                g_islandDrag = true;
+                g_dragBox    = MONITOR->logicalBox();
+                g_dragLast   = POINT;
+                g_pEventManager->postEvent(SHyprIPCEvent{.event = "hyprdriveislanddrag", .data = MONITOR->m_name});
+                miniTo(1.F);
+                return;
+            }
+
+            // Carried well down, away from the island: it closes and the window grows back.
+            if (POINT.y > g_dragBox.y + g_dragBox.h * DRAG_LEAVE) {
+                if (g_pEventManager)
+                    g_pEventManager->postEvent(SHyprIPCEvent{.event = "hyprdriveislanddragend", .data = ""});
+                g_islandDrag = false;
+                miniTo(0.F);
+                return;
+            }
+            if (POINT != g_dragLast && g_pEventManager) {
+                g_dragLast = POINT;
+                g_pEventManager->postEvent(SHyprIPCEvent{.event = "hyprdriveislanddraghover", .data = std::format("{:.0f},{:.0f}", POINT.x, POINT.y)});
+            }
+        }
         // THE ISLAND (NixOS dots, docs/manual.md#the-hyprdrive-island): the
         // pointer resting on the middle of a top edge tells the shell to open it.
         constexpr const char* KEY_ISLAND       = "plugin:hyprdrive:island:enabled";
@@ -183,13 +354,13 @@ namespace Hyprdrive::HotCorner {
         bool             g_islandLatched = false;
 
         // The monitor whose outer top edge the pointer is on, within the middle band.
-        PHLMONITOR islandMonitor(const Vector2D& point) {
-            const double HALF = std::max(40, Config::getValue<int>(KEY_ISLAND_WIDTH)) / 2.0;
+        PHLMONITOR islandMonitor(const Vector2D& point, double reach) {
+            const double HALF = std::max(40, Config::getValue<int>(KEY_ISLAND_WIDTH)) / 2.0 + reach;
             for (const auto& M : State::monitorState()->monitors()) {
                 if (!M || !M->m_enabled)
                     continue;
                 const auto BOX = M->logicalBox();
-                if (!BOX.containsPoint(point) || point.y > BOX.y + EDGE_PX || std::abs(point.x - (BOX.x + BOX.w / 2.0)) > HALF)
+                if (!BOX.containsPoint(point) || point.y > BOX.y + EDGE_PX + reach || std::abs(point.x - (BOX.x + BOX.w / 2.0)) > HALF)
                     continue;
                 for (const auto& OTHER : State::monitorState()->monitors())
                     if (OTHER && OTHER != M && OTHER->m_enabled && OTHER->logicalBox().containsPoint(Vector2D{point.x, BOX.y - 1}))
@@ -223,7 +394,7 @@ namespace Hyprdrive::HotCorner {
             g_islandPending = false;
             if (!Config::getValue<bool>(KEY_ISLAND) || !g_pInputManager || !g_pEventManager)
                 return 0;
-            const auto MONITOR = islandMonitor(g_pInputManager->getMouseCoordsInternal());
+            const auto MONITOR = islandMonitor(g_pInputManager->getMouseCoordsInternal(), 0.0);
             if (!MONITOR || islandBlocked(MONITOR))
                 return 0;
             g_islandLatched = true;
@@ -232,7 +403,7 @@ namespace Hyprdrive::HotCorner {
         }
 
         void islandMove() {
-            const auto MONITOR = g_pInputManager && Config::getValue<bool>(KEY_ISLAND) ? islandMonitor(g_pInputManager->getMouseCoordsInternal()) : nullptr;
+            const auto MONITOR = g_pInputManager && Config::getValue<bool>(KEY_ISLAND) ? islandMonitor(g_pInputManager->getMouseCoordsInternal(), 0.0) : nullptr;
             if (!MONITOR) {
                 islandCancel();
                 g_islandLatched = false;
@@ -245,15 +416,29 @@ namespace Hyprdrive::HotCorner {
         }
     }
 
+    static void renderDragProxy(const PHLMONITOR& monitor);
+
     void init() {
         if (!g_timer)
             g_timer = wl_event_loop_add_timer(g_pCompositor->m_wlEventLoop, fire, nullptr);
         if (!g_islandTimer)
             g_islandTimer = wl_event_loop_add_timer(g_pCompositor->m_wlEventLoop, islandFire, nullptr);
+        if (!g_dragTimer)
+            g_dragTimer = wl_event_loop_add_timer(g_pCompositor->m_wlEventLoop, dragFire, nullptr);
+
+        g_dragRender = Event::bus()->m_events.render.stage.listen([](eRenderStage stage) {
+            // Hyprland's move puts the window back to full size on every motion; each frame shrinks it again.
+            if (stage == RENDER_PRE && g_pInputManager)
+                if (const auto WINDOW = g_dragShrunk.lock())
+                    dragShrink(WINDOW, g_pInputManager->getMouseCoordsInternal(), miniProgress(), false);
+            if (stage == RENDER_LAST_MOMENT && g_dragShrunk)
+                renderDragProxy(g_pHyprRenderer->m_renderData.pMonitor.lock());
+        });
 
         g_move = Event::bus()->m_events.input.mouse.move.listen([](Vector2D, Event::SCallbackInfo&) {
             onMove();
             islandMove();
+            dragMove();
         });
 
         g_button = Event::bus()->m_events.input.mouse.button.listen([](IPointer::SButtonEvent e, Event::SCallbackInfo&) {
@@ -271,12 +456,61 @@ namespace Hyprdrive::HotCorner {
                 }
                 return;
             }
+            // Before Hyprland's own release handling, which ends its drag after this.
+            islandRelease();
             g_buttonsDown = std::max(0, g_buttonsDown - 1);
         });
     }
 
+    // Let go over the island: it moves the window where it landed, which grows back
+    // where Hyprland drops it. The dock calls this before ending its own tear-out drag.
+    void islandRelease() {
+        if (g_islandDrag && g_pEventManager && g_pInputManager) {
+            const auto WINDOW = movedWindow();
+            const auto POINT  = g_pInputManager->getMouseCoordsInternal();
+            if (WINDOW)
+                g_pEventManager->postEvent(SHyprIPCEvent{.event = "hyprdriveislanddrop",
+                                                         .data  = std::format("0x{:x},{:.0f},{:.0f}", reinterpret_cast<uintptr_t>(WINDOW.get()), POINT.x, POINT.y)});
+        }
+        if (g_islandDrag || g_dragShrunk) {
+            g_islandDrag = false;
+            dragStop();
+        }
+    }
+
+    // The carried window again, over every layer: the island is a top layer and Hyprland
+    // draws windows beneath those. Drawn as a flight's proxy is. docs/manual.md#dragging-a-window-to-the-sides
+    static void renderDragProxy(const PHLMONITOR& monitor) {
+        const auto WINDOW = g_dragShrunk.lock();
+        if (!WINDOW || !monitor || !WINDOW->m_realSize || !WINDOW->m_realPosition)
+            return;
+        const float S = std::max(monitor->m_scale, 0.01F);
+        CBox box{(WINDOW->m_realPosition->value() - monitor->m_position) * S, WINDOW->m_realSize->value() * S};
+        if (box.width < 2 || box.height < 2 || box.intersection(CBox{{}, monitor->m_pixelSize}).empty())
+            return;
+        box.round();
+        OvInternal::renderOverviewWorkspaceShadow(monitor, box, 1.F, false, 1.F);
+        Dock::drawFlightSurface(monitor, WINDOW, box, 1.F, Time::steadyNow(), false);
+        if (const int BORDER = std::max(0, Config::getValue<int>("general:border_size")); BORDER > 0) {
+            CBorderPassElement::SBorderData border;
+            border.box        = box;
+            border.grad1      = WINDOW->m_realBorderColor;
+            border.borderSize = BORDER;
+            border.round      = sc<int>(sc<float>(Config::themeRounding()) * S);
+            g_pHyprRenderer->addPassElement(makeUnique<CBorderPassElement>(border));
+        }
+    }
+
+    SDispatchResult onDragScale(std::string arg) {
+        try {
+            g_dragK = std::clamp(std::stod(arg), 0.0, 1.0);
+        } catch (...) { return {.success = false, .error = "expected a number"}; }
+        return {};
+    }
+
     void shutdown() {
         g_move.reset();
+        g_dragRender.reset();
         g_button.reset();
         if (g_timer)
             wl_event_source_remove(g_timer);
@@ -284,6 +518,11 @@ namespace Hyprdrive::HotCorner {
         if (g_islandTimer)
             wl_event_source_remove(g_islandTimer);
         g_islandTimer   = nullptr;
+        if (g_dragTimer)
+            wl_event_source_remove(g_dragTimer);
+        g_dragTimer   = nullptr;
+        g_islandDrag  = false;
+        dragRestore();
         g_islandPending = false;
         g_islandLatched = false;
         g_pending     = false;

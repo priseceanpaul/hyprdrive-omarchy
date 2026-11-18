@@ -526,6 +526,10 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
             const auto DRAGGED = TARGET ? TARGET->window() : PHLWINDOW{};
             const bool ONDOCK  = Hyprdrive::Dock::pillContains(MONITOR, LOCAL);
 
+            // NixOS dots: over the island it is the island's drop, posted while the drag still
+            // holds the window. docs/manual.md#dragging-a-window-to-the-sides
+            Hyprdrive::HotCorner::islandRelease();
+
             // END IT OURSELVES. The dock swallowed the press that started this
             // drag, so Hyprland never entered its own button state machine for
             // it and nothing on its side will let go -- the button came up and
@@ -704,6 +708,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 
     Hyprdrive::Config::registerDispatcher("overview", ::onOverviewDispatcher);
     Hyprdrive::Config::registerDispatcher("apps", ::onAppsDispatcher);
+    Hyprdrive::Config::registerDispatcher("dragscale", Hyprdrive::HotCorner::onDragScale);
     Hyprdrive::Config::registerDispatcher("navigate", ::onNavigateDispatcher);
     Hyprdrive::Config::registerDispatcher("window", ::onWindowDispatcher);
     Hyprdrive::Config::registerDispatcher("minimize", ::onMinimizeDispatcher);

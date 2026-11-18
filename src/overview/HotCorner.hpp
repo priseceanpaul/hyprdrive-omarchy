@@ -1,5 +1,9 @@
 #pragma once
 
+#include "globals.hpp"
+
+#include <string>
+
 // HOT CORNER (user, 2026-10-13). Push the pointer into the chosen screen corner
 // and rest it there for hot_corner:delay_ms, and the overview toggles on every
 // monitor, exactly as a Super tap does: it opens, and with the overview up the
@@ -18,4 +22,10 @@ namespace Hyprdrive::HotCorner {
     // them), and shutdown() at PLUGIN_EXIT: the timer must not outlive the .so.
     void init();
     void shutdown();
+    // NixOS dots: hyprdrive:dragscale, the island's cell height over monitor height,
+    // which a window carried to it shrinks to. docs/manual.md#dragging-a-window-to-the-sides
+    SDispatchResult onDragScale(std::string arg);
+    // NixOS dots: a release over the island posts its drop. Main's dock hook calls it
+    // before ending a tear-out drag, which the island's own listener would see too late.
+    void islandRelease();
 }

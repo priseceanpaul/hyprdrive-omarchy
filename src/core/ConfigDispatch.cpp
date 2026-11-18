@@ -45,6 +45,15 @@ SDispatcher* findDispatcher(const std::string_view name) {
                 return dispatcherFactoryLua(L, "overview");
             },
         },
+        // NixOS dots: the island's drop scale (HotCorner.hpp).
+        {
+            .name            = "dragscale",
+            .argPattern      = std::regex{"^[0-9]*\\.?[0-9]+$"},
+            .typeArgError    = "expected a string argument",
+            .invalidArgError = "expected a number, e.g. 0.18",
+            .luaFunction     = [](lua_State* L) { return dispatcherFactoryLua(L, "dragscale"); },
+            .luaLegacy       = [](lua_State* L) { return dispatcherFactoryLua(L, "dragscale"); },
+        },
         // The app grid (AppGrid.hpp); without an entry here Lua sees no function.
         {
             .name            = "apps",
