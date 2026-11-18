@@ -144,6 +144,42 @@ static CHyprSignalListener g_pDockHoverHook;
 static CHyprSignalListener g_pDockClickHook;
 static CHyprSignalListener g_pDockScrollHook;
 static CHyprSignalListener g_pDockRenderHook;
+
+// The island's crystal, under its layer: renderLayer asks this just before it queues
+// the layer's surfaces. docs/manual.md#the-islands-crystal
+static CFunctionHook* g_pIslandBlurHook = nullptr;
+static bool           g_islandPlated    = false; // (renderLayer asks again for the layer's popups, above it)
+
+static void queueIslandCrystal(const PHLLS& ls) {
+    const auto MONITOR = g_pHyprRenderer->m_renderData.pMonitor.lock();
+    const auto WL      = ls->wlSurface();
+    const auto SURFACE = WL ? WL->resource() : nullptr;
+    if (!MONITOR || !SURFACE)
+        return;
+    // The input mask is the notch, committed with the frame that draws it (closed: empty)
+    const auto NOTCH = SURFACE->m_current.input.getExtents();
+    const auto SIZE  = ls->size(Desktop::View::IGeometric::GEOMETRIC_CURRENT);
+    if (NOTCH.w < 1 || NOTCH.h < 1 || NOTCH.w >= SIZE.x)
+        return;
+    // As Island.qml's body.radius: 18 on a peek (at most 62 tall), 22 open
+    const double SIZING = Hyprdrive::Config::getValue<float>("plugin:hyprdrive:island:scale");
+    const double RADIUS = std::min({std::round((NOTCH.h > 62.0 * SIZING ? 22.0 : 18.0) * SIZING), NOTCH.h / 2.0, NOTCH.w / 2.0}) * MONITOR->m_scale;
+    const auto   POS    = ls->position(Desktop::View::IGeometric::GEOMETRIC_CURRENT) - MONITOR->m_position;
+    // Its top corners run off screen, as the island-style dock's bottom ones do
+    const CBox   PLATE{(POS.x + NOTCH.x) * MONITOR->m_scale, (POS.y + NOTCH.y) * MONITOR->m_scale - RADIUS, NOTCH.w * MONITOR->m_scale, NOTCH.h * MONITOR->m_scale + RADIUS};
+    Hyprdrive::Crystal::queue(PLATE, sc<int>(std::round(RADIUS)), ls->alpha()[Desktop::View::LS_ALPHA_FADE]->value());
+}
+
+static bool hkShouldBlurLayer(void* thisptr, PHLLS ls) {
+    using origShouldBlur = bool (*)(void*, PHLLS);
+    if (!ls || ls->m_namespace != "omarchy-hyprdrive-island" || !Hyprdrive::Crystal::enabled() || g_pHyprRenderer->m_bRenderingSnapshot)
+        return rc<origShouldBlur>(g_pIslandBlurHook->m_original)(thisptr, ls);
+    if (!g_islandPlated) {
+        g_islandPlated = true;
+        queueIslandCrystal(ls);
+    }
+    return false;
+}
 static CHyprSignalListener g_pDockStandDownHook;
 static CHyprSignalListener g_pDockFsWsHook;
 static CHyprSignalListener g_pDockFsSpecialHook;
@@ -617,9 +653,23 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
             info.cancelled = true;
     });
 
+    // Without the hook the island keeps Hyprland's blur, from its layer rule.
+    for (const auto& fn : HyprlandAPI::findFunctionsByName(HYPRDRIVE_HANDLE, "shouldBlur")) {
+        if (fn.demangled.find("IHyprRenderer::shouldBlur(") == std::string::npos || fn.demangled.find("CLayerSurface") == std::string::npos || !fn.demangled.ends_with(")"))
+            continue;
+        g_pIslandBlurHook = HyprlandAPI::createFunctionHook(HYPRDRIVE_HANDLE, fn.address, rc<void*>(hkShouldBlurLayer));
+        if (g_pIslandBlurHook && !g_pIslandBlurHook->hook()) {
+            HyprlandAPI::removeFunctionHook(HYPRDRIVE_HANDLE, g_pIslandBlurHook);
+            g_pIslandBlurHook = nullptr;
+        }
+        break;
+    }
+
     g_pDockRenderHook = Event::bus()->m_events.render.stage.listen([](eRenderStage stage) {
         if (stage != RENDER_POST_WINDOWS)
             return;
+
+        g_islandPlated = false; // (the top layer comes next)
 
         const auto MONITOR = g_pHyprRenderer->m_renderData.pMonitor.lock();
         if (scrollOverviewForMonitor(MONITOR))
@@ -903,6 +953,9 @@ APICALL EXPORT void PLUGIN_EXIT() {
     Hyprdrive::DockDrop::shutdown();
     g_pDockScrollHook.reset();
     g_pDockRenderHook.reset();
+    if (g_pIslandBlurHook)
+        HyprlandAPI::removeFunctionHook(HYPRDRIVE_HANDLE, g_pIslandBlurHook);
+    g_pIslandBlurHook = nullptr;
     g_pDockStandDownHook.reset();
     g_pDockFsWsHook.reset();
     g_pDockFsSpecialHook.reset();
