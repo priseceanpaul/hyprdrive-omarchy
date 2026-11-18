@@ -342,7 +342,9 @@ var sections = [
         { type: "slider", key: P + "island:zone_width", label: "Edge width", min: 80, max: 1600, step: 20, unit: "px", when: "islandOn",
           desc: "How much of the middle of the top edge opens it." },
         { type: "toggle", key: P + "island:peek", label: "Peek on its own", when: "islandOn",
-          desc: "It peeks out for a moment when the track changes, the volume changes or the microphone goes live." }
+          desc: "It peeks out for a moment when the track changes, the volume changes or the microphone goes live." },
+        { type: "toggle", key: P + "island:notices", label: "Notifications in the notch", when: "islandOn",
+          desc: "Notifications drop out of the notch instead of the top-right corner, fullscreen windows included. Off, they use the corner as before." }
       ]},
       { title: "Contents", rows: [
         { type: "toggle", key: P + "island:media", label: "Now playing", when: "islandOn",
@@ -376,7 +378,9 @@ var sections = [
         { type: "slider", key: P + "sides:zone_height", label: "Edge height", min: 80, max: 1600, step: 20, unit: "px", when: "sidesOn",
           desc: "How much of the middle of the edge opens it." },
         { type: "slider", key: P + "sides:delay_ms", label: "Rest time", min: 0, max: 1000, step: 20, unit: "ms", when: "sidesOn",
-          desc: "How long the pointer rests on the edge before the island opens. Resting on it is how you reach the desktops; a window carried there opens it at once." }
+          desc: "How long the pointer rests on the edge before the island opens. Resting on it is how you reach the desktops; a window carried there opens it at once." },
+        { type: "toggle", key: P + "sides:peek", label: "Peek on a desktop switch", when: "sidesOn",
+          desc: "When a screen's desktop changes, its islands open for a moment with the desktop in use lit. Off, they open only when you rest on the edge or carry a window." }
       ]}
     ]
   },
@@ -443,7 +447,9 @@ var sections = [
         { type: "keybind", id: "minimize", bind: "minimize", label: "Minimize", chordEdit: true,
           desc: "Minimizes the focused window into the dock. Takes its key (Super+H unless you change it) from anything else bound to it." },
         { type: "keybind", id: "show_desktop", bind: "show_desktop", label: "Show desktop", chordEdit: true,
-          desc: "Slides every window on the current desktop off the screen, each by its nearest edge, so the desktop shows. Press it again at any point, even halfway, and they turn round and come back to their places; so does switching desktops, opening the overview or a new window, or picking one of them in the dock. Takes its key (Super+D unless you change it) from anything else bound to it." }
+          desc: "Slides every window on the current desktop off the screen, each by its nearest edge, so the desktop shows. Press it again at any point, even halfway, and they turn round and come back to their places; so does switching desktops, opening the overview or a new window, or picking one of them in the dock. Takes its key (Super+D unless you change it) from anything else bound to it." },
+        { type: "toggle", key: P + "binds:alt_tab_monitors", label: "ALT + TAB switches monitors",
+          desc: "ALT + TAB and ALT + SHIFT + TAB focus the next and previous monitor. Off, they cycle windows in the workspace group, as before. Window cycling stays on SUPER + ALT + TAB." }
       ]},
       { title: "Desktops", rows: [
         { type: "keybind", id: "scroll_desktops", key: P + "binds:scroll_desktops", modsKey: P + "binds:scroll_desktops_mods", label: "Scroll through desktops",

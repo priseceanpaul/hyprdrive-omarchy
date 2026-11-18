@@ -242,6 +242,7 @@ KEY_META = [
     _k(PLUGIN + "island:delay_ms", "int", "island", 120, min=0, max=1000),
     _k(PLUGIN + "island:zone_width", "int", "island", 360, min=80, max=1600),
     _k(PLUGIN + "island:peek", "bool", "island", True),
+    _k(PLUGIN + "island:notices", "bool", "island", True),
     _k(PLUGIN + "island:media", "bool", "island", True),
     _k(PLUGIN + "island:calendar", "bool", "island", True),
     _k(PLUGIN + "island:clock_24h", "bool", "island", True),
@@ -257,6 +258,7 @@ KEY_META = [
     _k(PLUGIN + "sides:layout", "str", "sides", ""),  # edited per screen by the panel's Screens row
     _k(PLUGIN + "sides:zone_height", "int", "sides", 360, min=80, max=1600),
     _k(PLUGIN + "sides:delay_ms", "int", "sides", 120, min=0, max=1000),
+    _k(PLUGIN + "sides:peek", "bool", "sides", True),
     # Performance
     _k(PLUGIN + "smooth_frames", "bool", "performance", False),
     _k(PLUGIN + "live_layer_frost", "bool", "performance", True),
@@ -275,6 +277,7 @@ KEY_META = [
     # Keybinds. Kept out of AC/battery profiles like Mosaic: a charger must not
     # rebind keys.
     _k(PLUGIN + "binds:scroll_desktops", "bool", "keybinds", True),
+    _k(PLUGIN + "binds:alt_tab_monitors", "bool", "keybinds", True),
     _k(PLUGIN + "binds:scroll_desktops_mods", "mods", "keybinds", "SUPER", options=SCROLL_MODS),
     _k(PLUGIN + "binds:scroll_desktops_smooth", "bool", "keybinds", False),
     _k(PLUGIN + "binds:scroll_desktops_ticks", "int", "keybinds", 1, min=1, max=10),
