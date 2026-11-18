@@ -106,6 +106,8 @@ var sections = [
       { title: "Search", rows: [
         { type: "toggle", key: P + "search:browse_on_click", label: "Browse on click",
           desc: "Clicking the search bar opens the results before you type: the menu, your folders and the AI tools." },
+        { type: "slider", key: P + "search:text_scale", label: "Text size", min: 0.8, max: 2.0, step: 0.05, fmt: "percent",
+          desc: "How large the names in the search results are, against the original size." },
         { type: "toggle", key: P + "search:dictionary", label: "Dictionary",
           desc: "Type “define” and a word to look it up on Wiktionary." },
         { type: "toggle", key: P + "search:translate", label: "Translate",
