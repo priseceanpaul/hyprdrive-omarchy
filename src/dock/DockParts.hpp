@@ -21,6 +21,9 @@
 #include <vector>
 #include <algorithm>
 #include <cmath>
+#include <pango/pangocairo.h>
+#include <map>
+#include <tuple>
 #include <any>
 #define private public
 #define protected public
@@ -337,6 +340,11 @@ constexpr const char* KEY_HIDE_OVER_GAMES = "plugin:hyprdrive:dock:hide_over_gam
 constexpr const char* KEY_SHOW_DELAY   = "plugin:hyprdrive:dock:show_delay_ms";
 constexpr const char* KEY_HIDE_DELAY   = "plugin:hyprdrive:dock:hide_delay_ms";
 constexpr const char* KEY_AUTOHIDE_MS  = "plugin:hyprdrive:dock:autohide_ms";
+// The island's grow (NixOS dots, docs/manual.md#the-dock-grows-like-the-island).
+constexpr const char* KEY_GROW         = "plugin:hyprdrive:dock:grow";
+constexpr const char* KEY_GROW_SPEED   = "plugin:hyprdrive:island:speed";
+constexpr const char* KEY_ISLAND_STYLE = "plugin:hyprdrive:dock:island_style";
+constexpr const char* KEY_ISLAND_EDGE  = "plugin:hyprdrive:island:border";
 
 // X31, one key per reference setting: `show-running`, the two that gate the
 // badge (`show-icons-notifications-counter` AND `show-icons-emblems` -- D2D
@@ -904,6 +912,8 @@ bool ghostFlying();
 extern void updateAutohide(PHLMONITOR monitor, const STally& tally);
 extern CBox hoverBox(const CBox& iconBox, float scale);
 extern void queueDockFrost(PHLMONITOR monitor, const CBox& box, int rounding, float alpha, const CBox& clip, const CRegion* shape, bool currentPass, float roundingPower);
+// The dock on the bottom edge like the island on the top one. docs/manual.md#the-dock-grows-like-the-island
+extern bool islandStyle();
 
 std::vector<PHLWINDOW> itemWindows(const SItem& item);
 

@@ -8,11 +8,13 @@
 #include "Ripple.hpp"
 
 #include <algorithm>
+#include <cmath>
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/event/EventBus.hpp>
 #include <hyprland/src/layout/LayoutManager.hpp>
 #include <hyprland/src/layout/supplementary/DragController.hpp>
+#include <hyprland/src/managers/EventManager.hpp>
 #include <hyprland/src/managers/KeybindManager.hpp>
 #include <hyprland/src/managers/SessionLockManager.hpp>
 #include <hyprland/src/managers/fullscreen/FullscreenController.hpp>
@@ -170,13 +172,89 @@ namespace Hyprdrive::HotCorner {
             // 0 disarms a wl timer, so "no delay" is the next loop turn.
             wl_event_source_timer_update(g_timer, std::clamp<int>(Config::getValue<int>(KEY_DELAY), 1, 2000));
         }
+        // THE ISLAND (NixOS dots, docs/manual.md#the-hyprdrive-island): the
+        // pointer resting on the middle of a top edge tells the shell to open it.
+        constexpr const char* KEY_ISLAND       = "plugin:hyprdrive:island:enabled";
+        constexpr const char* KEY_ISLAND_DELAY = "plugin:hyprdrive:island:delay_ms";
+        constexpr const char* KEY_ISLAND_WIDTH = "plugin:hyprdrive:island:zone_width";
+
+        wl_event_source* g_islandTimer   = nullptr;
+        bool             g_islandPending = false;
+        bool             g_islandLatched = false;
+
+        // The monitor whose outer top edge the pointer is on, within the middle band.
+        PHLMONITOR islandMonitor(const Vector2D& point) {
+            const double HALF = std::max(40, Config::getValue<int>(KEY_ISLAND_WIDTH)) / 2.0;
+            for (const auto& M : State::monitorState()->monitors()) {
+                if (!M || !M->m_enabled)
+                    continue;
+                const auto BOX = M->logicalBox();
+                if (!BOX.containsPoint(point) || point.y > BOX.y + EDGE_PX || std::abs(point.x - (BOX.x + BOX.w / 2.0)) > HALF)
+                    continue;
+                for (const auto& OTHER : State::monitorState()->monitors())
+                    if (OTHER && OTHER != M && OTHER->m_enabled && OTHER->logicalBox().containsPoint(Vector2D{point.x, BOX.y - 1}))
+                        return nullptr;
+                return M;
+            }
+            return nullptr;
+        }
+
+        bool islandBlocked(const PHLMONITOR& monitor) {
+            if (g_pSessionLockManager && g_pSessionLockManager->isSessionLocked())
+                return true;
+            if (g_buttonsDown > 0 || overviewUp() || pointerLocked() || DockDrop::dndInProgress())
+                return true;
+            if (g_pUnifiedWorkspaceSwipe && g_pUnifiedWorkspaceSwipe->isGestureInProgress())
+                return true;
+            if (g_layoutManager && g_layoutManager->dragController() && g_layoutManager->dragController()->target())
+                return true;
+            return Fullscreen::controller()->hasFullscreen(monitor);
+        }
+
+        void islandCancel() {
+            g_islandPending = false;
+            if (g_islandTimer)
+                wl_event_source_timer_update(g_islandTimer, 0);
+        }
+
+        int islandFire(void*) {
+            if (!g_islandPending)
+                return 0;
+            g_islandPending = false;
+            if (!Config::getValue<bool>(KEY_ISLAND) || !g_pInputManager || !g_pEventManager)
+                return 0;
+            const auto MONITOR = islandMonitor(g_pInputManager->getMouseCoordsInternal());
+            if (!MONITOR || islandBlocked(MONITOR))
+                return 0;
+            g_islandLatched = true;
+            g_pEventManager->postEvent(SHyprIPCEvent{.event = "hyprdriveisland", .data = MONITOR->m_name});
+            return 0;
+        }
+
+        void islandMove() {
+            const auto MONITOR = g_pInputManager && Config::getValue<bool>(KEY_ISLAND) ? islandMonitor(g_pInputManager->getMouseCoordsInternal()) : nullptr;
+            if (!MONITOR) {
+                islandCancel();
+                g_islandLatched = false;
+                return;
+            }
+            if (g_islandLatched || g_islandPending || islandBlocked(MONITOR))
+                return;
+            g_islandPending = true;
+            wl_event_source_timer_update(g_islandTimer, std::clamp<int>(Config::getValue<int>(KEY_ISLAND_DELAY), 1, 2000));
+        }
     }
 
     void init() {
         if (!g_timer)
             g_timer = wl_event_loop_add_timer(g_pCompositor->m_wlEventLoop, fire, nullptr);
+        if (!g_islandTimer)
+            g_islandTimer = wl_event_loop_add_timer(g_pCompositor->m_wlEventLoop, islandFire, nullptr);
 
-        g_move = Event::bus()->m_events.input.mouse.move.listen([](Vector2D, Event::SCallbackInfo&) { onMove(); });
+        g_move = Event::bus()->m_events.input.mouse.move.listen([](Vector2D, Event::SCallbackInfo&) {
+            onMove();
+            islandMove();
+        });
 
         g_button = Event::bus()->m_events.input.mouse.button.listen([](IPointer::SButtonEvent e, Event::SCallbackInfo&) {
             if (e.state == WL_POINTER_BUTTON_STATE_PRESSED) {
@@ -186,6 +264,10 @@ namespace Hyprdrive::HotCorner {
                 if (g_pending) {
                     cancel();
                     g_latched = true;
+                }
+                if (g_islandPending) {
+                    islandCancel();
+                    g_islandLatched = true;
                 }
                 return;
             }
@@ -199,6 +281,11 @@ namespace Hyprdrive::HotCorner {
         if (g_timer)
             wl_event_source_remove(g_timer);
         g_timer       = nullptr;
+        if (g_islandTimer)
+            wl_event_source_remove(g_islandTimer);
+        g_islandTimer   = nullptr;
+        g_islandPending = false;
+        g_islandLatched = false;
         g_pending     = false;
         g_latched     = false;
         g_buttonsDown = 0;

@@ -798,6 +798,71 @@ CHyprColor accentColor() {
     return Hyprdrive::Config::themeForeground();
 }
 
+// The island's ears: the plate's tint, a square less the circle that bends the
+// edge into the pill. Cached per size, colour and side; the frost is box-shaped.
+static uint32_t packColor(const CHyprColor& c) {
+    return (sc<uint32_t>(c.r * 255) << 24) | (sc<uint32_t>(c.g * 255) << 16) | (sc<uint32_t>(c.b * 255) << 8) | sc<uint32_t>(c.a * 255);
+}
+
+// `edge` > 0: the ear's curve stroked that wide in `ec`, carrying the border on.
+static SP<Render::ITexture> islandEar(int size, const CHyprColor& c, bool right, int edge = 0, const CHyprColor& ec = {}) {
+    static std::map<std::tuple<int, uint32_t, bool, int, uint32_t>, SP<Render::ITexture>> cache;
+    const auto KEY = std::make_tuple(size, packColor(c), right, edge, edge > 0 ? packColor(ec) : 0U);
+    if (const auto IT = cache.find(KEY); IT != cache.end())
+        return IT->second;
+    if (cache.size() > 64)
+        cache.clear();
+    SP<Render::ITexture> tex;
+    cairo_surface_t*     surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, size, size);
+    if (cairo_surface_status(surface) == CAIRO_STATUS_SUCCESS) {
+        cairo_t* cr = cairo_create(surface);
+        cairo_set_source_rgba(cr, c.r, c.g, c.b, c.a);
+        cairo_paint(cr);
+        cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+        cairo_arc(cr, right ? size : 0, 0, size, 0, 2 * M_PI);
+        cairo_fill(cr);
+        if (edge > 0) {
+            cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+            cairo_set_source_rgba(cr, ec.r, ec.g, ec.b, ec.a);
+            cairo_set_line_width(cr, edge);
+            cairo_arc(cr, right ? size : 0, 0, size + edge / 2.0, 0, 2 * M_PI);
+            cairo_stroke(cr);
+        }
+        cairo_surface_flush(surface);
+        tex = g_pHyprRenderer->createTexture(surface);
+        cairo_destroy(cr);
+    }
+    cairo_surface_destroy(surface);
+    cache.emplace(KEY, tex);
+    return tex;
+}
+
+// The island's own fill, as its QML paints it: the theme background at 80%, 45%
+// under Glass (Crystal), over the frost. No outline.
+static CHyprColor islandTint() {
+    const auto TINT = background();
+    return CHyprColor{TINT.r, TINT.g, TINT.b, Hyprdrive::Crystal::enabled() ? 0.45F : 0.8F};
+}
+
+// `edge`: the pill's own border colour, so the ears carry it on unbroken.
+static void renderIslandEars(PHLMONITOR monitor, const CBox& pill, const CHyprColor& edge) {
+    const int SIZE = sc<int>(std::round(std::min<double>(10.0 * monitor->m_scale, pill.h)));
+    if (SIZE < 2)
+        return;
+    const CHyprColor C    = islandTint();
+    const bool       EDGE = Config::getValue<bool>(KEY_ISLAND_EDGE);
+    const int        BW   = EDGE ? std::max(1, Hyprdrive::Config::getValue<int>("general:border_size")) : 0;
+    const double     Y    = std::round(pill.y + pill.h - SIZE);
+    for (const bool RIGHT : {false, true}) {
+        CTexPassElement::SRenderData data;
+        data.tex = islandEar(SIZE, C, RIGHT, BW, edge);
+        data.box = CBox{RIGHT ? std::round(pill.x + pill.w) : std::round(pill.x) - SIZE, Y, sc<double>(SIZE), sc<double>(SIZE)};
+        data.a   = 1.F;
+        if (data.tex && Stacks::drawableBox(data.box))
+            g_pHyprRenderer->m_renderPass.add(makeUnique<CTexPassElement>(data));
+    }
+}
+
 void frostedPlate(PHLMONITOR monitor, const CBox& box, int rounding, float alpha, const CBox& clip, float roundingPower, bool currentPass) {
     // Every caller (the dock, the stacks' fan/pane/field, the menu) comes
     // through here: a zero or negative box would RASSERT in Hyprland's renderer
@@ -1205,7 +1270,22 @@ void render(PHLMONITOR monitor) {
     // it samples the same decoration:blur:* behind-chrome buffer as the strip
     // so strength cannot drift with search-result count. Frost itself is
     // skipped when decoration:blur:enabled is off, matching Omarchy windows.
-    frostedPlate(monitor, LAYOUT.pill, LAYOUT.rounding, 1.F);
+    // Island style: the bottom corners run off screen, and two ears join the edge.
+    const auto COLOR      = BorderFade::color(monitor, BorderFade::key("dock-pill", sc<uint64_t>(monitor->m_id)), dockInUse(monitor, LAYOUT, MOUSELOCAL),
+                                              Hyprdrive::Config::restingBorderColor(), Hyprdrive::Config::highlightColor().modifyA(1.F));
+    const CBox PLATE = islandStyle() ? CBox{LAYOUT.pill.x, LAYOUT.pill.y, LAYOUT.pill.w, LAYOUT.pill.h + LAYOUT.rounding} : LAYOUT.pill;
+    if (islandStyle()) {
+        queueDockFrost(monitor, PLATE, LAYOUT.rounding, 1.F, {}, nullptr, false, 2.F);
+        CRectPassElement::SRectData fill;
+        fill.box           = PLATE;
+        fill.color         = islandTint();
+        fill.round         = LAYOUT.rounding;
+        fill.roundingPower = 2.F;
+        if (Stacks::drawableBox(PLATE))
+            g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(fill));
+        renderIslandEars(monitor, LAYOUT.pill, COLOR);
+    } else
+        frostedPlate(monitor, PLATE, LAYOUT.rounding, 1.F);
 
     // Hyprland border weight, floored at 1 so a theme with border_size 0 still
     // frames the pill. Coloured like a window's border (user, 2026-10-16): the
@@ -1214,18 +1294,16 @@ void render(PHLMONITOR monitor) {
     // (BorderFade.hpp) -- in the overview and on the desktop alike.
     {
         const int  BORDERSIZE = std::max(1, Hyprdrive::Config::getValue<int>("general:border_size"));
-        const auto COLOR      = BorderFade::color(monitor, BorderFade::key("dock-pill", sc<uint64_t>(monitor->m_id)), dockInUse(monitor, LAYOUT, MOUSELOCAL),
-                                                  Hyprdrive::Config::restingBorderColor(), Hyprdrive::Config::highlightColor().modifyA(1.F));
 
         CBorderPassElement::SBorderData border;
-        border.box           = LAYOUT.pill.copy().round();
+        border.box           = PLATE.copy().round();
         border.grad1.reset(COLOR);
         border.a             = 1.F;
         border.borderSize    = BORDERSIZE;
         border.round         = LAYOUT.rounding;
         border.roundingPower = 2.F;
         // (crystal: the glass's own rim is the outline)
-        if (!Hyprdrive::Crystal::enabled())
+        if (islandStyle() ? Config::getValue<bool>(KEY_ISLAND_EDGE) : !Hyprdrive::Crystal::enabled())
             g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(border));
     }
 

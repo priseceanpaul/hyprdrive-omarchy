@@ -33,6 +33,37 @@ int autohideMs() {
     return sc<int>(*VAL);
 }
 
+bool growOn() {
+    return Config::getValue<bool>(KEY_GROW);
+}
+
+// Island style: on the bottom edge itself, as the island hangs from the top one.
+bool islandStyle() {
+    return Config::getValue<bool>(KEY_ISLAND_STYLE);
+}
+
+float edgeMargin() {
+    return islandStyle() ? 0.F : EDGE_MARGIN;
+}
+
+// The island's spring, critically damped, from rest: its omega, and how long it
+// takes to land (omega * t = 9 is within 0.15% of the target).
+float growOmega() {
+    return 2.F * 3.14159265F / (0.3667F / std::clamp(Config::getValue<float>(KEY_GROW_SPEED), 0.25F, 4.F));
+}
+
+float revealMs() {
+    return growOn() ? 9000.F / growOmega() : sc<float>(std::max(1, autohideMs()));
+}
+
+float revealProgress(const SReveal& r) {
+    const float MS = Motion::Clock::animMs(r.changedAt);
+    if (!growOn())
+        return Motion::curve(Motion::ESite::DOCK_REVEAL, std::clamp(MS / revealMs(), 0.F, 1.F));
+    const float WT = growOmega() * MS / 1000.F;
+    return WT >= 9.F ? 1.F : 1.F - (1.F + WT) * std::exp(-WT);
+}
+
 // 0 = fully out, 1 = fully tucked below the bottom edge.
 float hiddenFraction(PHLMONITOR monitor) {
     if (!monitor)
@@ -44,9 +75,8 @@ float hiddenFraction(PHLMONITOR monitor) {
     if (const auto OV = scrollOverviewForMonitor(monitor); OV && autohideOn())
         return 1.F - OV->openProgress();
 
-    const auto& R  = g_reveal[monitor->m_id];
-    const int   MS = std::max(1, autohideMs());
-    const float E  = Motion::curve(Motion::ESite::DOCK_REVEAL, std::clamp(Motion::Clock::animMs(R.changedAt) / sc<float>(MS), 0.F, 1.F));
+    const auto& R = g_reveal[monitor->m_id];
+    const float E = revealProgress(R);
 
     // From wherever it WAS to wherever it is going, which is what makes a
     // reversal continuous instead of a jump to the far end.
@@ -60,15 +90,43 @@ double slideOffsetPx(PHLMONITOR monitor, double pillHeight) {
     if (!monitor)
         return 0.0;
 
-    return std::round((pillHeight + EDGE_MARGIN * monitor->m_scale) * hiddenFraction(monitor));
+    return std::round((pillHeight + edgeMargin() * monitor->m_scale) * hiddenFraction(monitor));
+}
+
+// Grown rather than slid: out of the bottom edge, from a third of its width and
+// no height, as the island drops from the top. Icons scale about the pill's centre.
+void growLayout(PHLMONITOR monitor, SLayout& out, float hidden) {
+    const CBox   REST = out.pill;
+    const double P    = std::clamp(1.0 - hidden, 0.0, 1.0);
+    const double EDGE = REST.y + REST.h + edgeMargin() * monitor->m_scale;
+    // Never under 2 px: Hyprland's renderBorder takes a 0-high box down with the session.
+    const double W = REST.w * (0.3 + 0.7 * P), H = std::max(2.0, REST.h * P);
+    const double BOTTOM = EDGE + (REST.y + REST.h - EDGE) * P;
+    const Vector2D FROM = REST.middle(), TO{REST.x + REST.w / 2.0, BOTTOM - H / 2.0};
+    const auto     MOVE = [&](CBox& b) {
+        if (b.empty())
+            return;
+        b = CBox{TO.x + (b.x - FROM.x) * P, TO.y + (b.y - FROM.y) * P, std::max(2.0, b.w * P), std::max(2.0, b.h * P)};
+    };
+    out.pill     = CBox{TO.x - W / 2.0, BOTTOM - H, W, H};
+    out.rounding = std::min<int>(out.rounding, sc<int>(H / 2.0));
+    for (auto& item : out.items)
+        MOVE(item.iconBox);
+    MOVE(out.showApps);
 }
 
 // The pill WHERE IT IS, not where it rests. Empty once it is fully away.
 CBox slidPill(PHLMONITOR monitor) {
     auto pill = baseLayout(monitor).pill;
-    if (pill.empty() || hiddenFraction(monitor) >= 1.F)
+    const float F = hiddenFraction(monitor);
+    if (pill.empty() || F >= 1.F)
         return CBox{};
 
+    if (growOn() && F > 0.F) {
+        SLayout l{.pill = pill};
+        growLayout(monitor, l, F);
+        return l.pill;
+    }
     pill.y += slideOffsetPx(monitor, pill.height);
     return pill;
 }
@@ -92,7 +150,7 @@ bool autohideAnimating(PHLMONITOR monitor) {
 
     // X54. A flight counts as animating: the window is mid-air toward the icon
     // and nothing else on an idle desktop would ask for the frames it needs.
-    return R.pending || Flight::anyOn(monitor) || Motion::Clock::animMs(R.changedAt) < sc<float>(std::max(1, autohideMs()));
+    return R.pending || Flight::anyOn(monitor) || Motion::Clock::animMs(R.changedAt) < revealMs();
 }
 
 // The glide is Motion::ESite::DOCK_ARRANGE (ease-out cubic) and a new icon
@@ -269,11 +327,11 @@ SLayout buildBaseLayout(PHLMONITOR monitor) {
     // `extend-height` false and `always-center-icons` false: a floating pill
     // sized to its contents, centred on the monitor, clear of the bottom edge.
     const float XL = (sc<float>(monitor->m_size.x) - M.width) / 2.F;
-    const float YL = sc<float>(monitor->m_size.y) - EDGE_MARGIN - M.height;
+    const float YL = sc<float>(monitor->m_size.y) - edgeMargin() - M.height;
 
     out.pill = CBox{XL * SCALE, YL * SCALE, M.width * SCALE, M.height * SCALE};
     out.pill.round();
-    out.rounding = std::max(0, sc<int>(std::round(sc<float>(Hyprdrive::Config::dockCornerRadius()) * SCALE)));
+    out.rounding = std::max(0, sc<int>(std::round(sc<float>(islandStyle() ? 22 : Hyprdrive::Config::dockCornerRadius()) * SCALE)));
 
     float cursor = XL + CONTAINER_PAD_X + ITEM_MARGIN_X;
     out.items = std::move(items);
@@ -336,7 +394,8 @@ const SLayout& baseLayout(PHLMONITOR monitor) {
     key.flags    = (Config::getValue<bool>(KEY_ENABLED) ? 1U : 0U) |          //
         (Config::getValue<bool>(KEY_SHOW_APPS) ? 2U : 0U) |                   //
         (Config::getValue<bool>(KEY_SHOW_APPS_TOP) ? 4U : 0U) |               //
-        (Config::getValue<bool>(KEY_SHOW_APPS_EDGE) ? 8U : 0U);
+        (Config::getValue<bool>(KEY_SHOW_APPS_EDGE) ? 8U : 0U) |              //
+        (islandStyle() ? 16U : 0U);
 
     // std::unordered_map, so the reference this hands back survives a later
     // call for a DIFFERENT monitor inserting its own row.
@@ -457,7 +516,7 @@ void updateAutohide(PHLMONITOR monitor, const STally& tally) {
             // out it sits BELOW its resting box, so a pointer on the part that
             // is actually on screen fell outside the resting box and read as
             // "left the dock" -- which started a hide the user never asked for.
-            reach.height += EDGE_MARGIN * monitor->m_scale; // the margin under the pill still counts as on it
+            reach.height += edgeMargin() * monitor->m_scale; // the margin under the pill still counts as on it
             want = reach.containsPoint((POINT - monitor->m_position) * monitor->m_scale);
         }
     } else {
@@ -495,7 +554,7 @@ void updateAutohide(PHLMONITOR monitor, const STally& tally) {
 
         if (!want) {
             if (CBox reach = slidPill(monitor); !reach.empty()) {
-                reach.height += EDGE_MARGIN * monitor->m_scale;
+                reach.height += edgeMargin() * monitor->m_scale;
                 if (reach.containsPoint((POINT - monitor->m_position) * monitor->m_scale)) {
                     want      = true;
                     immediate = true;
@@ -589,6 +648,11 @@ SLayout layout(PHLMONITOR monitor) {
     // being swallowed by a dock that is not on screen.
     if (F >= 1.F)
         return SLayout{};
+
+    if (growOn()) {
+        growLayout(monitor, out, F);
+        return out;
+    }
 
     const double DY = slideOffsetPx(monitor, out.pill.height);
     out.pill.y += DY;

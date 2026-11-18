@@ -387,6 +387,24 @@ static void registerConfigValuesFor() {
     addKey(makeShared<CIntValue>(KEY("hot_corner:delay_ms"), "how long the pointer rests in the hot corner before the overview opens", 150,
                                  SIntValueOptions{.min = 0, .max = 2000}));
     addKey(makeShared<CBoolValue>(KEY("hot_corner:ripple"), "the hot corner sends a ripple across the screen from the corner, bending what is under it", true));
+    // The island (NixOS dots, docs/manual.md#the-hyprdrive-island): the zone here,
+    // the rest read by the shell's island from hdpanel's store.
+    addKey(makeShared<CBoolValue>(KEY("island:enabled"), "resting the pointer on the middle of the top edge opens the island", true));
+    addKey(makeShared<CIntValue>(KEY("island:delay_ms"), "how long the pointer rests on the top edge before the island opens", 120, SIntValueOptions{.min = 0, .max = 1000}));
+    addKey(makeShared<CIntValue>(KEY("island:zone_width"), "how wide the band in the middle of the top edge is that opens the island", 360, SIntValueOptions{.min = 80, .max = 1600}));
+    addKey(makeShared<CBoolValue>(KEY("island:peek"), "the island peeks out by itself on a track change, a volume change or the mic going live", true));
+    addKey(makeShared<CBoolValue>(KEY("island:media"), "the island shows what is playing", true));
+    addKey(makeShared<CBoolValue>(KEY("island:calendar"), "the island shows a month calendar", true));
+    addKey(makeShared<CBoolValue>(KEY("island:clock_24h"), "the island's clock uses 24-hour time", true));
+    addKey(makeShared<CBoolValue>(KEY("island:border"), "a theme border around the island, and around the dock in island style", false));
+    addKey(makeShared<CStringValue>(KEY("island:hidden"), "plugins left out of the island's row: their ids, comma-separated", Hyprlang::STRING{""}));
+    addKey(makeShared<CStringValue>(KEY("island:order"), "where the island's tiles sit: ids comma-separated, the two columns split by a bar", Hyprlang::STRING{""}));
+    addKey(makeShared<CStringValue>(KEY("island:plugin_order"), "the order of the island's plugin row: ids, comma-separated", Hyprlang::STRING{""}));
+    addKey(makeShared<CBoolValue>(KEY("island:plugins"), "the island lists plugin panels, opening one on a click and stepping through them on a scroll", true));
+    addKey(makeShared<CFloatValue>(KEY("island:scale"), "the island's size", 1.F, SFloatValueOptions{.min = 0.8F, .max = 1.5F}));
+    addKey(makeShared<CFloatValue>(KEY("island:speed"), "how fast the island, and the dock while dock:grow is on, grow and shrink", 1.F, SFloatValueOptions{.min = 0.25F, .max = 4.F}));
+    addKey(makeShared<CBoolValue>(KEY("dock:grow"), "the autohidden dock grows out of the bottom edge on the island's spring, instead of sliding", true));
+    addKey(makeShared<CBoolValue>(KEY("dock:island_style"), "the dock sits on the bottom edge like the island on the top one: square below, ears into the edge", false));
     addKey(makeShared<CBoolValue>(KEY("gestures:keep_swipe"),
                                   "a 3/4-finger swipe keeps going after fingers lift, as long as one finger that started it is down (reads the touchpad's own touches)",
                                   true));
