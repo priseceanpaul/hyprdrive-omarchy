@@ -490,6 +490,11 @@ void COverview::render() {
 
     OpenProf::gpuMark("begin");
     noteFrame(MONITOR->m_id);
+    // A grid opened under a still pointer: nothing behind it hovers either.
+    if (Hyprdrive::AppGrid::ownsPointer(MONITOR, getOverviewMousePosLocal(MONITOR)) && lastMousePosLocal != OVERVIEW_POINTER_PARKED) {
+        lastMousePosLocal = OVERVIEW_POINTER_PARKED;
+        updateTileHover();
+    }
     // Smooth-frames hint: only the open/close animation must hit every refresh.
     if (scale->isBeingAnimated())
         Hyprdrive::FramePacing::noteAnimatedFrame(MONITOR);
@@ -791,6 +796,13 @@ void COverview::render() {
     renderSwapTargetDim(MONITOR);
     renderDraggedWindow(MONITOR, ACTIVEIDX, PITCH, SCALE, NOW);
     renderSwapLabel(MONITOR);
+    // G5's app grid, under the bar and the dock. NixOs-dots docs/manual.md#the-hyprdrive-app-grid
+    {
+        // The results card's box, as layoutSearch places it.
+        const auto& SLH = searchLayoutHere();
+        const CBox  BAND{sc<double>(MONITOR->m_position.x), MONITOR->m_position.y + SLH.rowL + OVERVIEW_RESULT_PANELGAPL, sc<double>(MONITOR->m_size.x), std::max(0.F, SLH.bandH - 2.F * OVERVIEW_RESULT_PANELGAPL)};
+        Hyprdrive::AppGrid::render(MONITOR, overviewGridProgress(SCALE), SLH.pill, getOverviewGlobalBox(BAND, MONITOR, SCALE, OVERVIEW_CHROME_NO_PAN, 0.F, layout));
+    }
 
     // TOP layers (the bar) here, under the dock. OVERLAY waits until after the
     // dock and the captions -- see the end of this function.

@@ -703,6 +703,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     });
 
     Hyprdrive::Config::registerDispatcher("overview", ::onOverviewDispatcher);
+    Hyprdrive::Config::registerDispatcher("apps", ::onAppsDispatcher);
     Hyprdrive::Config::registerDispatcher("navigate", ::onNavigateDispatcher);
     Hyprdrive::Config::registerDispatcher("window", ::onWindowDispatcher);
     Hyprdrive::Config::registerDispatcher("minimize", ::onMinimizeDispatcher);

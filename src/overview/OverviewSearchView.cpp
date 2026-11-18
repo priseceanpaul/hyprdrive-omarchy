@@ -1338,7 +1338,7 @@ void COverview::renderSearch(PHLMONITOR monitor, float renderScale) {
     }
     // The easter egg's frame takes the same band (KeyboardCat::bandL), so the
     // strip makes room for it the way it does for results.
-    const float TARGET = std::max(PANEL ? overviewResultsBandTarget(monitor, SECTIONS, GRID_TILES, TOOLPANE, toolRowsHL) : 0.F, Hyprdrive::KeyboardCat::bandL());
+    const float TARGET = std::max(PANEL ? overviewResultsBandTarget(monitor, SECTIONS, GRID_TILES, TOOLPANE, toolRowsHL) : 0.F, std::max(Hyprdrive::KeyboardCat::bandL(), Hyprdrive::AppGrid::bandL(monitor, overviewResultsBudgetL(monitor, std::max<size_t>(1, monitor->m_activeWorkspace ? overviewMainGridWindows(monitor->m_activeWorkspace, monitor).size() : 0)), overviewResultsBudgetL(monitor, 0), resultsBand->value())));
     if (std::abs(resultsBand->goal() - TARGET) > 0.5F)
         *resultsBand = TARGET;
 
@@ -1350,7 +1350,7 @@ void COverview::renderSearch(PHLMONITOR monitor, float renderScale) {
     if (std::abs(resultsWidth->goal() - WIDTH_TARGET) > 0.5F)
         *resultsWidth = WIDTH_TARGET;
 
-    if (const float DOCKGOAL = QUERIED && !EMPTYRESULT && !RESULTS.empty() ? 1.F : 0.F; std::abs(searchDock->goal() - DOCKGOAL) > 0.01F)
+    if (const float DOCKGOAL = (QUERIED && !EMPTYRESULT && !RESULTS.empty()) || Hyprdrive::AppGrid::isOpen(monitor) ? 1.F : 0.F; std::abs(searchDock->goal() - DOCKGOAL) > 0.01F)
         *searchDock = DOCKGOAL;
 
     // The strip ran first this frame and said how far its label needs the pill

@@ -37,6 +37,7 @@
 #include <hyprland/src/render/pass/TexPassElement.hpp>
 #include <hyprland/src/render/gl/GLTexture.hpp>
 #include "Dock.hpp"
+#include "AppGrid.hpp"
 #include "FramePump.hpp"
 #include "Mosaic.hpp"
 #include "DesktopSwitch.hpp"
@@ -1186,6 +1187,7 @@ struct SMenu {
     // rows it opens are decided by its uri/mount/trashEmpty instead.
     SItem             item;
     CBox              anchor; // the icon cell the menu hangs off
+    bool              floating = false; // an app-grid tile: hangs below it, not above the pill
     CBox              box;    // the whole plate, filled by renderMenu
     std::vector<SRow> rows;
     // The window list scrolls when the menu would not fit above the dock: the

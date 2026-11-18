@@ -10,6 +10,7 @@
 #include "FullscreenGuard.hpp"
 #include "XGeometry.hpp"
 #include "OpenProf.hpp"
+#include "AppGrid.hpp"
 #include "FramePacing.hpp"
 #include <unistd.h>
 #include <hyprland/src/pointer/cursor/CursorShapeOverrideController.hpp>
@@ -191,6 +192,7 @@ namespace PluginDetail {
     extern void hkAddDamageB(void* thisptr, const pixman_region32_t* rg);
     extern std::optional<std::pair<PHLMONITOR, Vector2D>> monitorUnderCursor();
     extern SDispatchResult onOverviewDispatcher(std::string arg);
+    extern SDispatchResult onAppsDispatcher(std::string arg);
     extern bool isGuardModifierKeycode(uint32_t keycode);
     extern bool isGlobalPassthroughKeycode(uint32_t keycode);
     extern bool overviewAcceptsSearch();

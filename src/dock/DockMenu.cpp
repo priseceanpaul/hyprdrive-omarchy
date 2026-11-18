@@ -753,6 +753,11 @@ void renderMenuOne(PHLMONITOR monitor, const SLayout& layout, SMenu& M, float OP
     // 0 the plate's left border sat ON the screen edge and half of it was cut
     // away (user, 2026-09-29, an app far left on the dock).
     const double EDGE = std::round(MENU_EDGE_MARGIN * SCALE);
+    if (g_menu->floating) {
+        plate.y = std::round(g_menu->anchor.y + g_menu->anchor.height + MENU_GAP * SCALE);
+        if (plate.y + plate.height > monitor->m_size.y * SCALE - EDGE)
+            plate.y = std::round(g_menu->anchor.y - MENU_GAP * SCALE - plate.height);
+    }
     plate.x           = std::clamp(plate.x, EDGE, std::max(EDGE, monitor->m_size.x * SCALE - plate.width - EDGE));
     plate.y           = std::max(EDGE, plate.y);
 

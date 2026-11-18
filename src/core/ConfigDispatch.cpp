@@ -45,6 +45,16 @@ SDispatcher* findDispatcher(const std::string_view name) {
                 return dispatcherFactoryLua(L, "overview");
             },
         },
+        // The app grid (AppGrid.hpp); without an entry here Lua sees no function.
+        {
+            .name            = "apps",
+            .argPattern      = std::regex{"^(toggle|on|open|off|close)$"},
+            .defaultArg      = "toggle",
+            .typeArgError    = "expected an optional string argument; did you forget quotes around it?",
+            .invalidArgError = "expected one of: toggle, on, open, off, close",
+            .luaFunction     = [](lua_State* L) { return dispatcherFactoryLua(L, "apps"); },
+            .luaLegacy       = [](lua_State* L) { return dispatcherFactoryLua(L, "apps"); },
+        },
         {
             .name            = "navigate",
             .argPattern      = std::regex{"^(left|right|up|down)$"},

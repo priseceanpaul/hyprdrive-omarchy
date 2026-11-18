@@ -355,6 +355,13 @@ void stopUrgentHopTimer();
 bool menuContains(PHLMONITOR monitor, const Vector2D& point);
 bool menuClick(PHLMONITOR monitor, const Vector2D& point);
 
+// The app grid's tiles are dock items (AppGrid.hpp). NixOs-dots docs/manual.md#the-hyprdrive-app-grid
+std::vector<SItem> appItems(const std::vector<std::string>& desktopIds);
+void renderAppDots(PHLMONITOR monitor, const std::vector<SItem>& items, float alpha);
+bool openMenuFor(PHLMONITOR monitor, const SItem& item, const CBox& anchor);
+void activateApp(PHLMONITOR monitor, const SItem& item);
+void middleClickApp(PHLMONITOR monitor, const SItem& item);
+
 // X34. A hotkey press. `number` is the reference's 1..10 -- the SLOT, so the
 // tenth app is 10 even though its key is <Super>0 -- and not a keycap, so a
 // config that rebinds the digits still names the same app. `shift` and `ctrl`

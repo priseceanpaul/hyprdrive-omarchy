@@ -4,6 +4,7 @@
 
 #include <numeric>
 #include <hyprland/src/desktop/state/FadingOutState.hpp>
+#include "AppGrid.hpp"
 #include <hyprland/src/protocols/PointerConstraints.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/managers/SeatManager.hpp>

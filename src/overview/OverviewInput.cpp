@@ -1,4 +1,5 @@
 #include "OverviewInternal.hpp"
+#include "AppGrid.hpp"
 #include "DockInput.hpp"
 #include "DockStacks.hpp"
 #include "HoverTarget.hpp"
@@ -41,6 +42,14 @@ void COverview::onMouseMove(Vector2D, Event::SCallbackInfo& info) {
         // A desktop in the hand owns the motion (SDeskDrag).
         if (deskDragMove())
             return;
+
+        // Under the grid nothing else may hover: park the pointer off screen for the
+        // strip and tiles. The grid reads the real one. NixOs-dots docs/manual.md#the-hyprdrive-app-grid
+        if (Hyprdrive::AppGrid::ownsPointer(pMonitor.lock(), lastMousePosLocal)) {
+            lastMousePosLocal = OVERVIEW_POINTER_PARKED;
+            damage();
+        } else if (Hyprdrive::AppGrid::isOpen(pMonitor.lock()))
+            damage();
 
         updateTileHover();
 
@@ -369,6 +378,14 @@ void COverview::onMouseButton(IPointer::SButtonEvent event, Event::SCallbackInfo
                 lastMousePosLocal = DOCKPOINT;
                 return;
             }
+
+            // The app grid, behind the dock's menu and ahead of the tiles under it.
+            if (!drag.activeWindow && Hyprdrive::AppGrid::handleButton(DOCKMONITOR, DOCKPOINT, event.button, PRESSED, MAIN_BUTTON, RESIZE_BUTTON)) {
+                lastMousePosLocal = DOCKPOINT;
+                damage();
+                requestInputFrame();
+                return;
+            }
         }
 
         if (event.button == MAIN_BUTTON) {
@@ -686,6 +703,9 @@ void COverview::onMouseAxis(IPointer::SAxisEvent e, Event::SCallbackInfo& info) 
 
         info.cancelled = true;
 
+        if (e.axis == WL_POINTER_AXIS_VERTICAL_SCROLL && Hyprdrive::AppGrid::handleAxis(pMonitor.lock(), e.delta, e.source == WL_POINTER_AXIS_SOURCE_WHEEL))
+            return;
+
         // A dock stack's grid pane scrolls under the wheel here too (user,
         // 2026-09-30): the desktop's dock scroll hook skips overview monitors,
         // so the pane never saw a tick while the overview was up.
@@ -872,6 +892,12 @@ void COverview::onKeyboardKey(IKeyboard::SKeyEvent event, Event::SCallbackInfo& 
         // taking it as a plain Tab cycled panes instead of closing (O5).
         if ((KEYSYM == XKB_KEY_Tab || KEYSYM == XKB_KEY_ISO_Left_Tab) && BASE_MODS != 0)
             return;
+
+        if (BASE_MODS == 0 && Hyprdrive::AppGrid::handleKey(pMonitor.lock(), KEYSYM)) {
+            info.cancelled = true;
+            damage();
+            return;
+        }
 
         // SUPER+W CLOSES THE HIGHLIGHTED TILE (user, 2026-09-23).
         //

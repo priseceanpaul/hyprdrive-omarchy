@@ -542,6 +542,13 @@ void moveToEmptyWorkspace(PHLMONITOR monitor, const PHLWINDOW& WINDOW) {
 }
 
 void activateItem(PHLMONITOR monitor, const SItem& item, bool shift, bool ctrl = false, bool emptyWorkspace = false) {
+    // The apps tile opens the grid in place, rather than launching a command that
+    // would close the overview first. NixOs-dots docs/manual.md#the-hyprdrive-app-grid
+    if (item.desktopId == "omarchy-menu-apps") {
+        AppGrid::toggle(monitor);
+        return;
+    }
+
     // X35. A location has no windows to minimize: it is opened. Nautilus raises
     // the window it already has for a location rather than opening a second
     // one, so this is the reference's "focus it" too.

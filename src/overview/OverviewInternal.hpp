@@ -24,6 +24,7 @@
 #include "SearchBackend.hpp"
 #include "ToolSearch.hpp"
 #include "SearchSession.hpp"
+#include "AppGrid.hpp"
 #include "TileChrome.hpp"
 #include "WindowPill.hpp"
 
@@ -1150,6 +1151,10 @@ inline bool overviewMembershipMatchesLive(const PHLWINDOW& WINDOW) {
     // plumbing in overviewGridWindows and addOverviewWindow stays: it is what
     // puts the window on the RIGHT desktop once a query does bring it back.
     if (g_search.query.text.empty() && Hyprdrive::Minimize::isMinimized(WINDOW))
+        return false;
+
+    // NixOs-dots: the app grid takes the tiles' room. docs/manual.md#the-hyprdrive-app-grid
+    if (Hyprdrive::AppGrid::hidesWindow(WINDOW))
         return false;
 
     return overviewSearchMatches(WINDOW);

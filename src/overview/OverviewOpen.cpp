@@ -211,6 +211,20 @@ void resetSearchSession() {
 }
 
 namespace PluginDetail {
+// hyprdrive:apps toggle|on|off, on the focused monitor. NixOs-dots docs/manual.md#the-hyprdrive-app-grid
+SDispatchResult onAppsDispatcher(std::string arg) {
+    const auto MONITOR = Desktop::focusState()->monitor();
+    if (!MONITOR)
+        return {.success = false, .error = "no focused monitor"};
+    if (arg == "on" || arg == "open")
+        Hyprdrive::AppGrid::open(MONITOR);
+    else if (arg == "off" || arg == "close")
+        Hyprdrive::AppGrid::close(MONITOR);
+    else
+        Hyprdrive::AppGrid::toggle(MONITOR);
+    return {};
+}
+
 SDispatchResult onOverviewDispatcher(std::string arg) {
     // Ahead of parsing the action, which is deliberate and is load-bearing for
     // the CLOSE actions too: a toggle-off with a query typed drops the filter
