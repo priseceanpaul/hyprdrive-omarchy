@@ -384,6 +384,15 @@ void COverview::onStillTap() {
             damage();
             return;
         }
+        // The search box and its results take a tap as the click it is: it is not empty
+        // space waiting for a double tap. NixOs-dots docs/manual.md#the-keyboard-in-hyprdrives-search
+        const auto& SEARCH = searchLayoutHere();
+        if (SEARCH.pill.containsPoint(P) || searchRowAt(searchMonitorId(), P) || (SEARCH.containerBox.width > 1.F && SEARCH.containerBox.containsPoint(P))) {
+            cancelTap();
+            synthButton(BTN_LEFT, true);
+            synthButton(BTN_LEFT, false);
+            return;
+        }
         // The app grid takes a tap as the click it is. NixOs-dots docs/manual.md#one-app-drawer
         if (Hyprdrive::AppGrid::isOpen(MON)) {
             cancelTap();
