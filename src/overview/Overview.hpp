@@ -1051,6 +1051,7 @@ private:
         bool     dragging = false; // a synthesized left press is down
         wl_event_source* timer = nullptr;
         bool     strip    = false; // the held window is a strip mini, not a main tile
+        bool     scrolling = false; // the finger is scrolling the app grid
     } touchTrack;
 
     // The last still tap, for the double tap. NixOs-dots docs/manual.md#tapping-in-hyprdrive

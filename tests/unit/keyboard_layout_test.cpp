@@ -77,19 +77,24 @@ int main() {
         CHECK(near(GRID.keys.back().front().y + GRID.keys.back().front().h, 400.F - 10.F));
         // Every row is the same width, so the right edges line up.
         CHECK(near(GRID.keys[0].back().x + GRID.keys[0].back().w, GRID.keys[2].back().x + GRID.keys[2].back().w));
-        // 1000 wide is a phone-shaped fit only if height allows: unit 68 at 1.6x of (400-20-24)/5=71.2 -> fit by width wins.
         CHECK(GRID.unit > 0.F);
     }
-    // A wide short screen: keys cap at 1.6x as wide as tall, and the block is centred.
+    // The compact board on a phone (906x1088) and a TV (1280x720): keys fill the 820 board and the label floor holds.
     {
-        const auto GRID  = solve(rows(false), 3000.F, 270.F, 6.F, 10.F);
-        const float H    = GRID.keys[0][0].h;
-        const float W    = GRID.keys[0][1].w; // a plain 1-unit key
-        CHECK(near(W, H * 1.6F));
+        const float PHONEH = boardHeightL(1088.F, 4.F), TVH = boardHeightL(720.F, 4.F);
+        for (const float H : {PHONEH, TVH}) {
+            const auto GRID = solve(rows(false), 820.F, H, 4.F, 6.F);
+            CHECK(near(GRID.keys[0].front().x, 6.F));
+            CHECK(near(GRID.keys[0].back().x + GRID.keys[0].back().w, 820.F - 6.F));
+            CHECK(GRID.keys[0][1].h >= MIN_LABEL_L + 4.F);
+        }
+    }
+    // A board narrower than the screen is centred by its caller; inside it the block is centred too.
+    {
+        const auto GRID  = solve(rows(false), 600.F, 400.F, 4.F, 6.F);
         const float LEFT  = GRID.keys[0].front().x;
-        const float RIGHT = 3000.F - (GRID.keys[0].back().x + GRID.keys[0].back().w);
+        const float RIGHT = 600.F - (GRID.keys[0].back().x + GRID.keys[0].back().w);
         CHECK(near(LEFT, RIGHT));
-        CHECK(LEFT > 10.F);
     }
     // A narrow portrait box: width binds, nothing leaves the box.
     {
@@ -98,10 +103,15 @@ int main() {
             CHECK(line.back().x + line.back().w <= 360.F - 6.F + 0.01F);
     }
 
-    // The board's height: a quarter, never under 220, never past the screen less its margins.
-    CHECK(near(boardHeightL(1080.F, 4.F), 270.F));
-    CHECK(near(boardHeightL(800.F, 4.F), 220.F));
-    CHECK(near(boardHeightL(200.F, 4.F), 192.F));
+    // The board's height: 19% of the screen between 150 and 260, never past the screen less its margins.
+    CHECK(near(boardHeightL(1088.F, 4.F), 206.72F));
+    CHECK(near(boardHeightL(720.F, 4.F), 150.F));
+    CHECK(near(boardHeightL(2000.F, 4.F), 260.F));
+    CHECK(near(boardHeightL(100.F, 4.F), 92.F));
+    // Its width: the screen less a margin each side, at most 820.
+    CHECK(near(boardWidthL(906.F, 4.F), 820.F));
+    CHECK(near(boardWidthL(600.F, 4.F), 592.F));
+    CHECK(near(boardWidthL(1920.F, 4.F), 820.F));
 
     // Hit testing: a key's centre finds it, a gap finds nothing, outside finds nothing.
     {

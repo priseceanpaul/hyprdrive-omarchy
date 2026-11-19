@@ -105,6 +105,8 @@ static void registerConfigValuesFor() {
                                    SFloatValueOptions{.min = 0.5F, .max = 3.F}));
     addKey(makeShared<CStringValue>(KEY("apps:scale_monitors"),
                                     "per-monitor app grid size, \"name:scale,name:scale\" (e.g. \"stream:1.8\"); a listed monitor overrides apps:scale", Hyprlang::STRING{""}));
+    addKey(makeShared<CStringValue>(KEY("apps:fill_monitors"),
+                                    "monitors where the app grid fills the screen (side margin 3%, rows to the dock or keyboard) with icons at normal size: names, comma-separated", Hyprlang::STRING{"stream"}));
     addKey(makeShared<CFloatValue>(KEY("search:text_scale"), "overview search: size of the result text, as a multiple of the original", 1.5F,
                                    SFloatValueOptions{.min = 0.8F, .max = 2.F}));
     addKey(makeShared<CBoolValue>(KEY("search:dictionary"), "`define <word>` in the overview search looks the word up on Wiktionary (sends the word to en.wiktionary.org)", false));

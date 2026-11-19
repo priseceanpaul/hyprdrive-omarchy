@@ -267,7 +267,17 @@ void COverview::onTouchMove(ITouch::SMotionEvent e, Event::SCallbackInfo& info) 
             touchTrack.last     = POS;
             if (POS.distanceSq(touchTrack.start) > SLOP * SLOP)
                 cancelTouchHold();
-            if (!touchTrack.swiping && std::abs(POS.x - touchTrack.start.x) > Hyprdrive::Config::getValue<int>("plugin:hyprdrive:touch:swipe_threshold") && std::abs(POS.x - touchTrack.start.x) > std::abs(POS.y - touchTrack.start.y)) {
+            // A vertical drag that began on the app grid scrolls it with the finger, and is neither
+            // a desktop swipe nor a tap. NixOs-dots docs/manual.md#one-app-drawer
+            if (!touchTrack.scrolling && !touchTrack.swiping && POS.distanceSq(touchTrack.start) > SLOP * SLOP && std::abs(POS.y - touchTrack.start.y) > std::abs(POS.x - touchTrack.start.x) &&
+                Hyprdrive::AppGrid::touchScrollable(PMONITOR, touchTrack.start)) {
+                touchTrack.scrolling = true;
+                cancelTap();
+                Hyprdrive::AppGrid::touchScroll(PMONITOR, POS.y - touchTrack.start.y); // the slop's travel too, so it follows from the touch-down
+            } else if (touchTrack.scrolling) {
+                Hyprdrive::AppGrid::touchScroll(PMONITOR, STEP.y);
+            }
+            if (!touchTrack.scrolling && !touchTrack.swiping && std::abs(POS.x - touchTrack.start.x) > Hyprdrive::Config::getValue<int>("plugin:hyprdrive:touch:swipe_threshold") && std::abs(POS.x - touchTrack.start.x) > std::abs(POS.y - touchTrack.start.y)) {
                 onWorkspaceSwipeBegin();
                 cancelTap();
                 touchTrack.swiping = true;
@@ -321,6 +331,12 @@ void COverview::touchHoldFired() {
 
 void COverview::endTouch(bool tap) {
         cancelTouchHold();
+        if (touchTrack.scrolling) {
+            Hyprdrive::AppGrid::touchScrollEnd(pMonitor.lock());
+            cancelTap();
+            touchTrack = {.timer = touchTrack.timer};
+            return;
+        }
         if (touchTrack.dragging) {
             synthButton(BTN_LEFT, false);
             cancelTap();

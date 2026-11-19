@@ -1,8 +1,8 @@
 #pragma once
 
 // The on-screen keyboard's keys and where they sit: pure, no compositor.
-// The two layers are the shell keyboard's (Layout.js) key for key, and the box
-// maths is its Panel.qml's. NixOs-dots docs/manual.md#the-keyboard-in-hyprdrives-search
+// The two layers are the shell keyboard's (Layout.js) key for key; the box
+// maths is Hyprdrive's own. NixOs-dots docs/manual.md#the-keyboard-in-hyprdrives-search
 
 #include <algorithm>
 #include <cstdint>
@@ -96,22 +96,29 @@ namespace Hyprdrive::KeyboardLayout {
         float                           unit = 0.F; // the smaller side of a key: what labels follow
     };
 
-    // The board's height in logical px: a quarter of the screen, never under 220,
+    // The board's height in logical px: 19% of the screen between 150 and 260,
     // and never more than the screen less its margins.
     inline float boardHeightL(float monitorHeightL, float marginL) {
-        return std::clamp(std::max(220.F, monitorHeightL / 4.F), 1.F, std::max(1.F, monitorHeightL - 2.F * marginL));
+        return std::clamp(std::clamp(monitorHeightL * 0.19F, 150.F, 260.F), 1.F, std::max(1.F, monitorHeightL - 2.F * marginL));
     }
 
-    // Rows fill the height exactly. Keys fill the width, but are at most 1.6x as
-    // wide as tall: full width on a phone, a keyboard-shaped block centred on a
-    // landscape screen. `pad` is the inset all round, `gap` what lies between keys.
+    // Its width: the screen less a margin each side, and no wider than 820.
+    inline float boardWidthL(float monitorWidthL, float marginL) {
+        return std::max(1.F, std::min(monitorWidthL - 2.F * marginL, 820.F));
+    }
+
+    // The smallest a label is drawn, in logical px: keys shrink before this does.
+    inline constexpr float MIN_LABEL_L = 13.F;
+
+    // Rows fill the height exactly and keys fill the width, so the board's own
+    // size (boardWidthL) is what keeps them from stretching. `pad` is the inset
+    // all round, `gap` what lies between keys.
     inline SGrid solve(const Rows& all, float width, float height, float gap, float pad) {
         SGrid out;
         const int   N     = static_cast<int>(all.size());
         const float U     = maxUnits(all);
         const float UNITH = std::max(1.F, (height - 2.F * pad - gap * static_cast<float>(N - 1)) / static_cast<float>(std::max(1, N)));
-        const float FITW  = std::max(1.F, (width - 2.F * pad - gap * (U - 1.F)) / U);
-        const float UNITW = std::min(UNITH * 1.6F, FITW);
+        const float UNITW = std::max(1.F, (width - 2.F * pad - gap * (U - 1.F)) / U);
         const float BLOCK = UNITW * U + gap * (U - 1.F);
         const float X0    = pad + std::max(0.F, (width - 2.F * pad - BLOCK) / 2.F);
 

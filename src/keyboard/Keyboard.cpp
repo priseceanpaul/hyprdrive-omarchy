@@ -5,12 +5,18 @@
 #include "Dock.hpp"
 #include "DockStacks.hpp"
 #include "FramePump.hpp"
+#include "FunctionHooks.hpp"
+#include "IOverview.hpp"
 #include "MotionClock.hpp"
 #include "MotionSites.hpp"
 #include "OverviewRender.hpp"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <format>
+#include <fstream>
 #include <linux/input-event-codes.h>
 #include <unordered_map>
 #include <vector>
@@ -20,10 +26,14 @@
 #include <hyprland/src/desktop/state/FocusState.hpp>
 #include <hyprland/src/devices/IKeyboard.hpp>
 #include <hyprland/src/devices/IPointer.hpp>
+#include <hyprland/src/desktop/Workspace.hpp>
+#include <hyprland/src/desktop/view/Window.hpp>
 #include <hyprland/src/devices/ITouch.hpp>
 #include <hyprland/src/event/EventBus.hpp>
 #include <hyprland/src/helpers/time/Time.hpp>
+#include <hyprland/src/layout/LayoutManager.hpp>
 #include <hyprland/src/managers/SessionLockManager.hpp>
+#include <hyprland/src/managers/fullscreen/FullscreenController.hpp>
 #include <hyprland/src/managers/eventLoop/EventLoopManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/output/Monitor.hpp>
@@ -42,8 +52,8 @@ namespace Hyprdrive::Keyboard {
     namespace {
         // Geometry in logical px. The margin is the dock's EDGE_MARGIN (DockParts.hpp).
         constexpr float MARGIN_L = 4.F;
-        constexpr float PAD_L    = 10.F;
-        constexpr float GAP_L    = 6.F;
+        constexpr float PAD_L    = 6.F;
+        constexpr float GAP_L    = 4.F;
 
         // The reveal runs on the dock's curve; a press fades out over PRESS_MS.
         constexpr float REVEAL_MS = 260.F;
@@ -67,6 +77,14 @@ namespace Hyprdrive::Keyboard {
         };
 
         std::unordered_map<MONITORID, SBoard> g_boards;
+
+        // Space reserved at the bottom of a monitor while the keyboard is up on the
+        // plain desktop, and the fullscreen windows squeezed to make room for it.
+        // NixOs-dots docs/manual.md#the-keyboard-in-hyprdrives-search
+        std::unordered_map<MONITORID, bool> g_reserved;
+        std::vector<PHLWINDOWREF>           g_squeezed;
+        std::unordered_map<MONITORID, bool> g_syncing; // a reserve change already queued
+        CFunctionHook*                      g_arrangeHook = nullptr;
 
         struct STouch {
             int32_t   id = 0;
@@ -118,11 +136,15 @@ namespace Hyprdrive::Keyboard {
             return KL::boardHeightL(sc<float>(monitor->m_size.y), MARGIN_L);
         }
 
-        // The plate at rest, monitor-local RENDER px; `slid` is where it is now.
+        float widthL(PHLMONITOR monitor) {
+            return KL::boardWidthL(sc<float>(monitor->m_size.x), MARGIN_L);
+        }
+
+        // The plate at rest, centred, monitor-local RENDER px; `slid` is where it is now.
         CBox restingPlate(PHLMONITOR monitor) {
             const float S = monitor->m_scale;
-            return CBox{std::round(MARGIN_L * S), std::round((sc<float>(monitor->m_size.y) - MARGIN_L - heightL(monitor)) * S),
-                        std::round((sc<float>(monitor->m_size.x) - 2.F * MARGIN_L) * S), std::round(heightL(monitor) * S)};
+            return CBox{std::round((sc<float>(monitor->m_size.x) - widthL(monitor)) / 2.F * S), std::round((sc<float>(monitor->m_size.y) - MARGIN_L - heightL(monitor)) * S),
+                        std::round(widthL(monitor) * S), std::round(heightL(monitor) * S)};
         }
 
         CBox slidPlate(PHLMONITOR monitor, float reveal) {
@@ -164,6 +186,81 @@ namespace Hyprdrive::Keyboard {
                     return M;
             }
             return nullptr;
+        }
+
+        // ---- reserved space ----------------------------------------------------
+
+        // Like a layer's exclusive zone: Hyprland's arrangeLayersForMonitor resets
+        // and re-adds the RESERVED_DYNAMIC_TYPE_LS slot, and this adds the keyboard
+        // to it afterwards, so tiled and maximized windows reflow above the plate.
+        void hkArrange(void* self, const MONITORID& id) {
+            using orig = void (*)(void*, const MONITORID&);
+            rc<orig>(g_arrangeHook->m_original)(self, id);
+            const auto IT = g_reserved.find(id);
+            if (IT == g_reserved.end() || !IT->second)
+                return;
+            if (const auto MON = monitorById(id)) {
+                MON->m_reservedArea.addType(Desktop::RESERVED_DYNAMIC_TYPE_LS, Vector2D{0.0, 0.0}, Vector2D{0.0, sc<double>(heightL(MON) + MARGIN_L)});
+                g_layoutManager->invalidateMonitorGeometries(MON);
+            }
+        }
+
+        std::string squeezedFile() {
+            const char* DIR = std::getenv("XDG_RUNTIME_DIR");
+            return DIR && *DIR ? std::string(DIR) + "/omarchy-keyboard.squeezed" : std::string{};
+        }
+
+        std::string addressOf(const PHLWINDOW& window) {
+            return std::format("0x{:x}", rc<uintptr_t>(window.get()));
+        }
+
+        // Fullscreen ignores reserved space: while the keyboard is up, the
+        // monitor's fullscreen window is maximized, and listed for the pad daemon.
+        void squeeze(PHLMONITOR monitor) {
+            const auto WS = monitor->m_activeWorkspace;
+            const auto W  = WS ? ::Fullscreen::controller()->getFullscreenWindow(WS) : nullptr;
+            if (!W || !W->m_isMapped || !::Fullscreen::controller()->isFullscreen(W, ::Fullscreen::FSMODE_FULLSCREEN))
+                return;
+            ::Fullscreen::controller()->setFullscreenMode(W, ::Fullscreen::FSMODE_MAXIMIZED, std::nullopt);
+            g_squeezed.push_back(W);
+            if (const auto FILE = squeezedFile(); !FILE.empty())
+                std::ofstream(FILE, std::ios::app) << addressOf(W) << "\n";
+        }
+
+        // Back to fullscreen what is still maximized; a window the user changed meanwhile stays.
+        void unsqueeze() {
+            for (const auto& REF : g_squeezed) {
+                if (const auto W = REF.lock(); W && W->m_isMapped && ::Fullscreen::controller()->isFullscreen(W, ::Fullscreen::FSMODE_MAXIMIZED))
+                    ::Fullscreen::controller()->setFullscreenMode(W, ::Fullscreen::FSMODE_FULLSCREEN, std::nullopt);
+            }
+            g_squeezed.clear();
+            if (const auto FILE = squeezedFile(); !FILE.empty())
+                std::remove(FILE.c_str());
+        }
+
+        bool wantReserve(PHLMONITOR monitor) {
+            const auto* B = monitor ? board(monitor->m_id) : nullptr;
+            return g_arrangeHook && B && B->shown && !scrollOverviewForMonitor(monitor);
+        }
+
+        // Applies the reserve the keyboard's state now calls for, outside any frame.
+        void syncReserve(PHLMONITOR monitor) {
+            if (!monitor || !g_pEventLoopManager || wantReserve(monitor) == g_reserved[monitor->m_id] || g_syncing[monitor->m_id])
+                return;
+            g_syncing[monitor->m_id] = true;
+            const MONITORID ID       = monitor->m_id;
+            g_pEventLoopManager->doLater([ID] {
+                g_syncing[ID] = false;
+                const auto MON = monitorById(ID);
+                if (!MON || wantReserve(MON) == g_reserved[ID])
+                    return;
+                g_reserved[ID] = wantReserve(MON);
+                if (g_reserved[ID])
+                    squeeze(MON);
+                else
+                    unsqueeze();
+                g_pHyprRenderer->arrangeLayersForMonitor(ID);
+            });
         }
 
         // ---- typing ------------------------------------------------------------
@@ -393,6 +490,11 @@ namespace Hyprdrive::Keyboard {
     }
 
     void init() {
+        // Not fatal when missing: then the keyboard covers windows, as it did.
+        g_arrangeHook = FunctionHooks::firstMatch("Keyboard", "arrangeLayersForMonitor", rc<void*>(hkArrange), "arrangeLayersForMonitor(");
+        if (g_arrangeHook && !g_arrangeHook->hook())
+            g_arrangeHook = nullptr;
+
         if (!g_timer)
             g_timer = wl_event_loop_add_timer(g_pCompositor->m_wlEventLoop, onTimer, nullptr);
 
@@ -459,6 +561,18 @@ namespace Hyprdrive::Keyboard {
     }
 
     void shutdown() {
+        // Windows back to fullscreen and the space given back, before the hook goes.
+        unsqueeze();
+        for (auto& [ID, ON] : g_reserved) {
+            ON = false;
+            g_pHyprRenderer->arrangeLayersForMonitor(ID);
+        }
+        g_reserved.clear();
+        g_syncing.clear();
+        if (g_arrangeHook) {
+            g_arrangeHook->unhook();
+            g_arrangeHook = nullptr;
+        }
         g_down.reset();
         g_motion.reset();
         g_up.reset();
@@ -486,6 +600,7 @@ namespace Hyprdrive::Keyboard {
         B.automatic = automatic;
         B.changedAt = Time::steadyNow();
         poke(monitor);
+        syncReserve(monitor);
     }
 
     void hide(PHLMONITOR monitor) {
@@ -504,6 +619,7 @@ namespace Hyprdrive::Keyboard {
         if (g_repeat.armed && g_repeat.mon == monitor->m_id)
             stopRepeat();
         poke(monitor);
+        syncReserve(monitor);
     }
 
     void toggle(PHLMONITOR monitor) {
@@ -516,6 +632,11 @@ namespace Hyprdrive::Keyboard {
     bool shown(PHLMONITOR monitor) {
         const auto* B = monitor ? board(monitor->m_id) : nullptr;
         return B && B->shown;
+    }
+
+    float reveal(PHLMONITOR monitor) {
+        const auto* B = monitor ? board(monitor->m_id) : nullptr;
+        return B ? progress(*B) : 0.F;
     }
 
     float visibleHeightL(PHLMONITOR monitor) {
@@ -538,6 +659,8 @@ namespace Hyprdrive::Keyboard {
     }
 
     void render(PHLMONITOR monitor) {
+        // An overview opening or going over a shown keyboard changes what is reserved.
+        syncReserve(monitor);
         auto* B = monitor ? board(monitor->m_id) : nullptr;
         if (!B)
             return;
@@ -575,7 +698,7 @@ namespace Hyprdrive::Keyboard {
         const float FADE   = B->pressRow < 0 || B->pressSymbols != B->state.symbols ? 0.F
                            : B->held        ? 1.F
                                             : std::clamp(1.F - Motion::Clock::animMs(B->pressedAt) / PRESS_MS, 0.F, 1.F);
-        const int   FONT   = std::max(1, sc<int>(std::round(GRID.unit * 0.42F)));
+        const int   FONT   = std::max(sc<int>(std::round(KL::MIN_LABEL_L * S)), sc<int>(std::round(GRID.unit * 0.42F)));
         const int   KEYR   = std::max(3, std::min(ROUNDING / 2, sc<int>(GRID.unit * 0.25F)));
 
         for (size_t r = 0; r < ROWS.size(); ++r) {
@@ -632,6 +755,8 @@ namespace Hyprdrive::Keyboard {
 
     void forgetMonitor(MONITORID id) {
         g_boards.erase(id);
+        g_reserved.erase(id);
+        g_syncing.erase(id);
         std::erase_if(g_touches, [id](const STouch& T) { return T.mon == id; });
         if (g_repeat.armed && g_repeat.mon == id)
             stopRepeat();

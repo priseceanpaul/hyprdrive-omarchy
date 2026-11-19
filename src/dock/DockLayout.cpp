@@ -4,7 +4,7 @@
 #include "MotionSites.hpp"
 #include "MotionClock.hpp"
 #include "IOverview.hpp"
-#include "KeyboardInset.hpp"
+#include "Keyboard.hpp"
 
 namespace Hyprdrive::Dock {
 using namespace DockDetail;
@@ -71,18 +71,22 @@ float hiddenFraction(PHLMONITOR monitor) {
     if (!monitor)
         return 0.F;
 
+    // The on-screen keyboard takes the pill's place: it slides away by the
+    // keyboard's own reveal, and back as that leaves. NixOs-dots docs/manual.md#the-keyboard-in-hyprdrives-search
+    const float KEYBOARD = Hyprdrive::Keyboard::reveal(monitor);
+
     // Overview owns the slide while it exists: the 3-finger swipe warps
     // openProgress every update, so the pill tracks the fingers the same way
     // the cards do. Super-tap uses the scale animation, same number.
     if (const auto OV = scrollOverviewForMonitor(monitor); OV && autohideOn())
-        return 1.F - OV->openProgress();
+        return std::max(1.F - OV->openProgress(), KEYBOARD);
 
     const auto& R = g_reveal[monitor->m_id];
     const float E = revealProgress(R);
 
     // From wherever it WAS to wherever it is going, which is what makes a
     // reversal continuous instead of a jump to the far end.
-    return R.from + ((R.shown ? 0.F : 1.F) - R.from) * E;
+    return std::max(R.from + ((R.shown ? 0.F : 1.F) - R.from) * E, KEYBOARD);
 }
 
 // How far down the pill currently sits, mid-slide included. Shared with
@@ -291,14 +295,6 @@ bool arrangeAnimating(MONITORID id) {
     return (A.active && Hyprdrive::Config::animElapsedMs(A.since) < ARRANGE_MS) || !A.exits.empty();
 }
 
-// How far the on-screen keyboard lifts the pill. Only while an overview is up on
-// the monitor, where the dock is pinned; otherwise 0. NixOs-dots docs/manual.md#the-keyboard-in-hyprdrives-search
-static float keyboardLiftL(PHLMONITOR monitor) {
-    if (!monitor || !scrollOverviewForMonitor(monitor))
-        return 0.F;
-    return std::round(Hyprdrive::KeyboardInset::easedL(monitor));
-}
-
 SLayout buildBaseLayout(PHLMONITOR monitor) {
     SLayout out;
 
@@ -337,7 +333,7 @@ SLayout buildBaseLayout(PHLMONITOR monitor) {
     // `extend-height` false and `always-center-icons` false: a floating pill
     // sized to its contents, centred on the monitor, clear of the bottom edge.
     const float XL = (sc<float>(monitor->m_size.x) - M.width) / 2.F;
-    const float YL = sc<float>(monitor->m_size.y) - edgeMargin() - M.height - keyboardLiftL(monitor);
+    const float YL = sc<float>(monitor->m_size.y) - edgeMargin() - M.height;
 
     out.pill = CBox{XL * SCALE, YL * SCALE, M.width * SCALE, M.height * SCALE};
     out.pill.round();
@@ -406,7 +402,6 @@ const SLayout& baseLayout(PHLMONITOR monitor) {
         (Config::getValue<bool>(KEY_SHOW_APPS_TOP) ? 4U : 0U) |               //
         (Config::getValue<bool>(KEY_SHOW_APPS_EDGE) ? 8U : 0U) |              //
         (islandStyle() ? 16U : 0U);
-    key.lift = keyboardLiftL(monitor);
 
     // std::unordered_map, so the reference this hands back survives a later
     // call for a DIFFERENT monitor inserting its own row.

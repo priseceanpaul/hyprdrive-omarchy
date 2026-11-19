@@ -168,7 +168,7 @@ inline Vector2D overviewCardOriginOffsetLive(PHLMONITOR monitor, float overviewS
 
     const float TOP = std::max(0.F, (overviewTopChromeBottomL(monitor) - sc<float>(monitor->m_position.y)) * MS);
 
-    // The on-screen keyboard sits where the dock would, so the card ends above it.
+    // The dock leaves while the keyboard is up, so the card ends above whichever is taller.
     // NixOs-dots docs/manual.md#the-keyboard-in-hyprdrives-search
     const float KEYBOARD = Hyprdrive::KeyboardInset::easedL(monitor) * MS;
 
@@ -177,7 +177,7 @@ inline Vector2D overviewCardOriginOffsetLive(PHLMONITOR monitor, float overviewS
         const float ICON = sc<float>(std::clamp(Hyprdrive::Config::getValue<int>("plugin:hyprdrive:dock:icon_size"), 8, 512));
         // Dock.cpp: ICON_PAD 14 on top and bottom, EDGE_MARGIN 4 under the pill.
         const float DOCKH = ICON + 14.F + 14.F + 4.F;
-        bottom            = std::max(TOP + 1.F, H - (DOCKH * MS + KEYBOARD));
+        bottom            = std::max(TOP + 1.F, H - std::max(DOCKH * MS, KEYBOARD));
     }
 
     if (bottom <= TOP + 1.F)

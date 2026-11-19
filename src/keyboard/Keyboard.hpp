@@ -10,7 +10,8 @@
 
 // The on-screen keyboard, drawn by Hyprdrive as the dock's twin: a frosted plate
 // that slides up from the bottom edge, for a phone streaming the desktop and a
-// TV. It types through Hyprland's keyboard path, so the overview's search and the
+// TV. On the plain desktop it reserves its height at the bottom of the monitor, as
+// a layer's exclusive zone does. It types through Hyprland's keyboard path, so the overview's search and the
 // focused client both get its keys. NixOs-dots docs/manual.md#the-keyboard-in-hyprdrives-search
 namespace Hyprdrive::Keyboard {
 
@@ -28,6 +29,9 @@ namespace Hyprdrive::Keyboard {
     // How far up the keyboard (and its margin) covers the monitor, in logical px,
     // eased with its reveal: 0 when hidden. KeyboardInset reads it as it is.
     float visibleHeightL(PHLMONITOR monitor);
+
+    // The reveal, 0 hidden to 1 up, on the dock's curve: the dock hides by it.
+    float reveal(PHLMONITOR monitor);
 
     // Sliding, or still fading a press: the caller asks frames.
     bool animating(PHLMONITOR monitor);

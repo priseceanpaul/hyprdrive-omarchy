@@ -39,6 +39,8 @@ constexpr float BASE_LABEL_PX = 13.F;
 constexpr float BASE_PAD      = 24.F;
 constexpr float BAND_GAP = 10.F; // inside the band, above and below: the results card's
 constexpr float SIDE     = 0.08F;
+constexpr float FILL_SIDE = 0.03F; // a fill monitor's side margin, as a share of its width
+constexpr float MOMENTUM_S = 0.25F; // how far a flick carries, in seconds of its release speed
 constexpr float FADE_MS  = 170.F;
 constexpr int   MAX_COLS = 12;
 
@@ -76,6 +78,26 @@ float userScale(const PHLMONITOR& monitor) {
     return std::clamp(scale, 0.5F, 3.F);
 }
 
+// Whether `monitor` is named in apps:fill_monitors ("a,b"): its drawer takes the
+// screen. NixOs-dots docs/manual.md#one-app-drawer
+bool fillMonitor(const PHLMONITOR& monitor) {
+    if (!monitor)
+        return false;
+    const std::string LIST = Hyprdrive::Config::getValue<std::string>("plugin:hyprdrive:apps:fill_monitors") + ",";
+    std::string       item;
+    for (const char C : LIST) {
+        if (C != ',') {
+            if (C != ' ' && C != '\t')
+                item.push_back(C);
+            continue;
+        }
+        if (item == monitor->m_name)
+            return true;
+        item.clear();
+    }
+    return false;
+}
+
 struct SApp {
     std::string id, name;
 };
@@ -98,6 +120,19 @@ struct SState {
     float  roomL = 0;      // the band's whole room once the tiles are out, logical px
     bool   full  = false;  // past the first stage: the tiles shrank and are now out
     int    cols = 1, rowsVisible = 1;
+
+    // Touch scrolling: the rows follow a finger, then glide to a row boundary.
+    // `frac` is how far the first row is scrolled up, render px. NixOs-dots docs/manual.md#one-app-drawer
+    double          frac     = 0.0;
+    double          extraTop = 0.0; // a fill monitor's taller cells hold the icon in their middle
+    bool            fill     = false;
+    CBox            view;
+    double          velocity = 0.0; // px/s of offset, from the finger
+    Time::steady_tp lastMove;
+    bool            settling = false;
+    double          settleFrom = 0.0, settleTo = 0.0;
+    float           settleMs = 1.F;
+    Time::steady_tp settleAt;
 };
 
 SState            g_state;
@@ -178,10 +213,34 @@ int totalRows() {
 }
 
 void clampScroll() {
-    g_state.firstRow = std::clamp(g_state.firstRow, 0, std::max(0, totalRows() - g_state.rowsVisible));
+    const int LAST = std::max(0, totalRows() - g_state.rowsVisible);
+    g_state.firstRow = std::clamp(g_state.firstRow, 0, LAST);
+    g_state.frac     = g_state.firstRow >= LAST ? 0.0 : std::clamp(g_state.frac, 0.0, std::max(0.0, g_state.cellH - 1.0));
+}
+
+double offsetPx() {
+    return g_state.firstRow * g_state.cellH + g_state.frac;
+}
+
+double maxOffsetPx() {
+    return std::max(0, totalRows() - g_state.rowsVisible) * g_state.cellH;
+}
+
+void setOffset(double px) {
+    px               = std::clamp(px, 0.0, maxOffsetPx());
+    g_state.firstRow = sc<int>(std::floor(px / std::max(1.0, g_state.cellH)));
+    g_state.frac     = px - g_state.firstRow * g_state.cellH;
+    clampScroll();
+}
+
+// A key or the wheel moves whole rows: any touch glide or half row is over.
+void rowScroll() {
+    g_state.frac     = 0.0;
+    g_state.settling = false;
 }
 
 void scrollTo(int index) {
+    rowScroll();
     const int ROW = index / std::max(1, g_state.cols);
     if (ROW < g_state.firstRow)
         g_state.firstRow = ROW;
@@ -193,21 +252,22 @@ void scrollTo(int index) {
 // Only whole rows are drawn, so a visible index always has a full cell.
 bool visible(int index) {
     const int FIRST = g_state.firstRow * g_state.cols;
-    return index >= FIRST && index < std::min(sc<int>(g_apps.size()), FIRST + g_state.rowsVisible * g_state.cols);
+    const int ROWS  = g_state.rowsVisible + (g_state.frac > 0.0 ? 2 : 0); // the two a half-scrolled view shows
+    return index >= FIRST && index < std::min(sc<int>(g_apps.size()), FIRST + ROWS * g_state.cols);
 }
 
 CBox cellBox(int index) {
     const int SLOT = index - g_state.firstRow * g_state.cols;
-    return {g_state.x0 + sc<double>(SLOT % g_state.cols) * g_state.cellW, g_state.y0 + sc<double>(SLOT / g_state.cols) * g_state.cellH, g_state.cellW, g_state.cellH};
+    return {g_state.x0 + sc<double>(SLOT % g_state.cols) * g_state.cellW, g_state.y0 - g_state.frac + sc<double>(SLOT / g_state.cols) * g_state.cellH, g_state.cellW, g_state.cellH};
 }
 
 CBox iconBox(const CBox& cell, float scale) {
     const double SIZE = std::round(BASE_ICON * scale);
-    return {std::round(cell.x + (cell.width - SIZE) / 2.0), std::round(cell.y + BASE_ICON_TOP * scale), SIZE, SIZE};
+    return {std::round(cell.x + (cell.width - SIZE) / 2.0), std::round(cell.y + g_state.extraTop + BASE_ICON_TOP * scale), SIZE, SIZE};
 }
 
 int indexAt(const Vector2D& point) {
-    if (!g_state.plate.containsPoint(point))
+    if (!g_state.plate.containsPoint(point) || (g_state.frac > 0.0 && !g_state.view.containsPoint(point)))
         return -1;
     for (int i = g_state.firstRow * g_state.cols; i < sc<int>(g_apps.size()) && visible(i); ++i)
         if (cellBox(i).containsPoint(point))
@@ -238,20 +298,22 @@ bool isModifier(uint32_t keysym) {
         keysym == XKB_KEY_Num_Lock;
 }
 
-void addRect(const CBox& box, const CHyprColor& color, int round) {
+void addRect(const CBox& box, const CHyprColor& color, int round, const CBox& clip = {}) {
     CRectPassElement::SRectData rect;
     rect.box           = box;
+    rect.clipBox       = clip;
     rect.color         = color;
     rect.round         = round;
     rect.roundingPower = Hyprdrive::Config::themeRoundingPower();
     g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(rect));
 }
 
-void addTex(const SP<Render::ITexture>& tex, const CBox& box, float alpha) {
+void addTex(const SP<Render::ITexture>& tex, const CBox& box, float alpha, const CBox& clip = {}) {
     if (!tex || !tex->ok())
         return;
     CTexPassElement::SRenderData data;
-    data.tex = tex;
+    data.tex     = tex;
+    data.clipBox = clip;
     data.box = box;
     data.a   = alpha;
     g_pHyprRenderer->m_renderPass.add(makeUnique<CTexPassElement>(data));
@@ -261,7 +323,8 @@ void addTex(const SP<Render::ITexture>& tex, const CBox& box, float alpha) {
 // render that fills it.
 void shapeFor(PHLMONITOR monitor) {
     const double W  = monitor->m_size.x;
-    const double MG = std::max(48.0, W * SIDE);
+    g_state.fill    = fillMonitor(monitor);
+    const double MG = g_state.fill ? std::max(12.0, W * FILL_SIDE) : std::max(48.0, W * SIDE);
     const float  U  = userScale(monitor);
     g_state.cols        = std::clamp(sc<int>((W - 2 * MG - 2 * BASE_PAD * U) / (BASE_CELL_W * U)), 1, MAX_COLS);
     g_state.rowsVisible = std::max(1, sc<int>((g_state.roomL - 2 * BAND_GAP - 2 * BASE_PAD * U) / (BASE_CELL_H * U)));
@@ -360,13 +423,23 @@ void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& 
 
     const float  S      = std::max(monitor->m_scale, 0.01F) * userScale(monitor);
     const double H      = monitor->m_size.y * monitor->m_scale;
-    const double CW = std::round(BASE_CELL_W * S), CH = std::round(BASE_CELL_H * S), P = std::round(BASE_PAD * S);
+    const double CW0 = std::round(BASE_CELL_W * S), CH0 = std::round(BASE_CELL_H * S), P = std::round(BASE_PAD * S);
+    double       CW = CW0, CH = CH0;
 
-    g_state.pill  = searchPill;
-    g_state.cellW = CW;
-    g_state.cellH = CH;
+    g_state.pill = searchPill;
     shapeFor(monitor);
-    clampScroll();
+    // A fill monitor spreads normal-size icons over cells that reach its side margins and the band's height.
+    if (g_state.fill) {
+        const double SIDEPX = std::round(std::max(12.0, monitor->m_size.x * FILL_SIDE) * monitor->m_scale);
+        CW                  = std::max(CW0, std::floor((monitor->m_size.x * monitor->m_scale - 2 * SIDEPX - 2 * P) / g_state.cols));
+        if (band.height >= 2 * P + CH0) {
+            g_state.rowsVisible = std::max(1, sc<int>((band.height - 2 * P) / CH0));
+            CH                  = std::floor((band.height - 2 * P) / g_state.rowsVisible);
+        }
+    }
+    g_state.extraTop = std::round((CH - CH0) / 2.0);
+    g_state.cellW    = CW;
+    g_state.cellH    = CH;
 
     // The results card's own box, so it grows and folds with the band; as wide as its columns.
     const double PLATEW = g_state.cols * CW + 2 * P;
@@ -375,6 +448,17 @@ void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& 
     g_state.plate = CBox{std::round(band.x + (band.width - PLATEW) / 2.0), std::round(band.y), PLATEW, std::round(band.height)};
     g_state.x0          = g_state.plate.x + P;
     g_state.y0          = g_state.plate.y + P;
+    g_state.view        = CBox{g_state.plate.x, g_state.y0, PLATEW, g_state.plate.height - P};
+
+    // A touch glide runs here, a frame at a time, toward its row boundary.
+    if (g_state.settling) {
+        const float T = std::clamp(msSince(g_state.settleAt) / g_state.settleMs, 0.F, 1.F);
+        setOffset(g_state.settleFrom + (g_state.settleTo - g_state.settleFrom) * (1.F - std::pow(1.F - T, 3.F)));
+        if (T >= 1.F)
+            g_state.settling = false;
+        frame(monitor);
+    }
+    clampScroll();
 
     // The theme's corners and border, as the dock's menu and folder panel wear them.
     const int ROUND = sc<int>(std::round(Hyprdrive::Config::themeRounding() * monitor->m_scale));
@@ -396,9 +480,12 @@ void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& 
     const int        HOVER = Dock::menuOpen() ? -1 : indexAt(MOUSE);
     const int        FONT  = std::max(1, sc<int>(std::round(BASE_LABEL_PX * S)));
 
+    // At rest only whole rows; mid-scroll, any row that reaches into the view, clipped to it.
+    const bool       SCROLLED = g_state.frac > 0.0;
+    const double     VIEWEND  = g_state.view.y + g_state.view.height;
     std::vector<int> indices;
     for (int i = g_state.firstRow * g_state.cols; i < sc<int>(g_apps.size()) && visible(i); ++i)
-        if (cellBox(i).y + CH <= g_state.plate.y + g_state.plate.height)
+        if (SCROLLED ? cellBox(i).y + CH > g_state.view.y && cellBox(i).y < VIEWEND : cellBox(i).y + CH <= VIEWEND)
             indices.push_back(i);
 
     std::vector<std::string> ids;
@@ -415,24 +502,28 @@ void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& 
 
         if (I == HOVER || I == g_state.selection) {
             const double INSET = std::round(4.F * S);
-            addRect(CBox{CELL.x + INSET, CELL.y + INSET, CELL.width - 2 * INSET, CELL.height - 2 * INSET}, INK.modifyA((I == g_state.selection ? 0.16F : 0.10F) * ALPHA), ROUND);
+            addRect(CBox{CELL.x + INSET, CELL.y + INSET, CELL.width - 2 * INSET, CELL.height - 2 * INSET}, INK.modifyA((I == g_state.selection ? 0.16F : 0.10F) * ALPHA), ROUND, g_state.view);
         }
 
-        addTex(OverviewRender::appIcon(item.icon.empty() ? "application-x-executable" : item.icon), item.iconBox, ALPHA);
+        addTex(OverviewRender::appIcon(item.icon.empty() ? "application-x-executable" : item.icon), item.iconBox, ALPHA, g_state.view);
 
         const auto TEXT = OverviewRender::text(g_apps[sc<size_t>(I)].name, LABEL, FONT, false, "", sc<int>(CELL.width - std::round(12.F * S)), 500);
         if (TEXT && TEXT->ok()) {
             const double TW = TEXT->m_size.x, TH = TEXT->m_size.y;
-            addTex(TEXT, CBox{std::round(CELL.x + (CELL.width - TW) / 2.0), std::round(item.iconBox.y + item.iconBox.height + BASE_LABEL_Y * S), TW, TH}, ALPHA);
+            addTex(TEXT, CBox{std::round(CELL.x + (CELL.width - TW) / 2.0), std::round(item.iconBox.y + item.iconBox.height + BASE_LABEL_Y * S), TW, TH}, ALPHA, g_state.view);
         }
     }
+    // (the dots are not clipped: a row cut by the view has none)
+    for (size_t k = items.size(); k-- > 0;)
+        if (cellBox(indices[k]).y < g_state.view.y || cellBox(indices[k]).y + CH > VIEWEND)
+            items.erase(items.begin() + sc<long>(k));
     Dock::renderAppDots(monitor, items, ALPHA);
 
     // A thin scroll thumb when not every row fits.
     if (const int TOTAL = totalRows(); TOTAL > g_state.rowsVisible) {
         const double TRACK = g_state.plate.height - 2 * P, BARW = std::round(4.F * S);
         const double THUMB = std::max(std::round(24.0 * S), TRACK * g_state.rowsVisible / TOTAL);
-        const double Y     = g_state.plate.y + P + (TRACK - THUMB) * g_state.firstRow / std::max(1, TOTAL - g_state.rowsVisible);
+        const double Y     = g_state.plate.y + P + (TRACK - THUMB) * offsetPx() / std::max(1.0, maxOffsetPx());
         addRect(CBox{g_state.plate.x + PLATEW - P / 2.0 - BARW / 2.0, std::round(Y), BARW, std::round(THUMB)}, INK.modifyA(0.35F * ALPHA), std::min(ROUND, sc<int>(BARW / 2.0)));
     }
 }
@@ -488,11 +579,46 @@ bool handleAxis(PHLMONITOR monitor, double delta, bool wheel) {
         g_state.axisAccum -= rows * 40.0;
     }
     if (rows) {
+        rowScroll();
         g_state.firstRow += rows;
         clampScroll();
         frame(monitor);
     }
     return true;
+}
+
+bool touchScrollable(PHLMONITOR monitor, const Vector2D& point) {
+    return ownsPointer(monitor, point) && totalRows() > g_state.rowsVisible;
+}
+
+void touchScroll(PHLMONITOR monitor, double dy) {
+    const auto NOW = Time::steadyNow();
+    const double MS = std::chrono::duration<double, std::milli>(NOW - g_state.lastMove).count();
+    // The release speed is a smoothed finger speed; a pause (a stale reading) forgets it.
+    const double INSTANT = MS > 0.5 && MS < 100.0 ? -dy / MS * 1000.0 : 0.0;
+    g_state.velocity     = MS < 100.0 ? 0.6 * INSTANT + 0.4 * g_state.velocity : 0.0;
+    g_state.lastMove     = NOW;
+    g_state.settling     = false;
+    setOffset(offsetPx() - dy);
+    frame(monitor);
+}
+
+void touchScrollEnd(PHLMONITOR monitor) {
+    const double SPEED = msSince(g_state.lastMove) > 80.F ? 0.0 : g_state.velocity;
+    g_state.velocity   = 0.0;
+    const double NOW   = offsetPx();
+    const double CELL  = std::max(1.0, g_state.cellH);
+    const double TO    = std::clamp(std::round((NOW + SPEED * MOMENTUM_S) / CELL) * CELL, 0.0, maxOffsetPx());
+    if (std::abs(TO - NOW) < 1.0) {
+        setOffset(TO);
+    } else {
+        g_state.settling   = true;
+        g_state.settleFrom = NOW;
+        g_state.settleTo   = TO;
+        g_state.settleAt   = Time::steadyNow();
+        g_state.settleMs   = std::clamp(180.F + sc<float>(std::abs(TO - NOW) / CELL) * 45.F, 180.F, 420.F);
+    }
+    frame(monitor);
 }
 
 bool handleKey(PHLMONITOR monitor, uint32_t keysym) {

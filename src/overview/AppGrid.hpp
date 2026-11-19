@@ -31,6 +31,12 @@ void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& 
 // The overview's input hooks; true = claimed. Monitor-local render px.
 bool handleButton(PHLMONITOR monitor, const Vector2D& point, uint32_t button, bool pressed, uint32_t mainButton, uint32_t menuButton);
 bool handleAxis(PHLMONITOR monitor, double delta, bool wheel);
+// A finger dragging on the plate scrolls it: touchScrollable asks whether the point is one
+// a vertical drag may scroll, Scroll follows the finger by dy render px, End lets
+// it glide on and settle on a row.
+bool touchScrollable(PHLMONITOR monitor, const Vector2D& point);
+void touchScroll(PHLMONITOR monitor, double dy);
+void touchScrollEnd(PHLMONITOR monitor);
 bool handleKey(PHLMONITOR monitor, uint32_t keysym);
 
 } // namespace Hyprdrive::AppGrid
