@@ -101,6 +101,10 @@ static void registerConfigValuesFor() {
     // The overview search's dictionary and translator (user, 2026-09-22). OFF by
     // default: they send what is typed to a third-party service, and a
     // compositor plugin must not start doing that on its own.
+    addKey(makeShared<CFloatValue>(KEY("apps:scale"), "the app grid's size, as a multiple of its own (cells, icons, labels and padding); 1 = default", 1.F,
+                                   SFloatValueOptions{.min = 0.5F, .max = 3.F}));
+    addKey(makeShared<CStringValue>(KEY("apps:scale_monitors"),
+                                    "per-monitor app grid size, \"name:scale,name:scale\" (e.g. \"stream:1.8\"); a listed monitor overrides apps:scale", Hyprlang::STRING{""}));
     addKey(makeShared<CFloatValue>(KEY("search:text_scale"), "overview search: size of the result text, as a multiple of the original", 1.5F,
                                    SFloatValueOptions{.min = 0.8F, .max = 2.F}));
     addKey(makeShared<CBoolValue>(KEY("search:dictionary"), "`define <word>` in the overview search looks the word up on Wiktionary (sends the word to en.wiktionary.org)", false));

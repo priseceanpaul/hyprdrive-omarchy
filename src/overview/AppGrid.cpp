@@ -30,13 +30,13 @@ namespace Hyprdrive::AppGrid {
 namespace {
 
 // Logical px, scaled per monitor. NixOs-dots docs/manual.md#the-hyprdrive-app-grid
-constexpr float CELL_W   = 148.F;
-constexpr float CELL_H   = 146.F;
-constexpr float ICON     = 72.F;
-constexpr float ICON_TOP = 16.F;
-constexpr float LABEL_Y  = 18.F; // below the icon, leaving the running dots room
-constexpr float LABEL_PX = 13.F;
-constexpr float PAD      = 24.F;
+constexpr float BASE_CELL_W   = 148.F;
+constexpr float BASE_CELL_H   = 146.F;
+constexpr float BASE_ICON     = 72.F;
+constexpr float BASE_ICON_TOP = 16.F;
+constexpr float BASE_LABEL_Y  = 18.F; // below the icon, leaving the running dots room
+constexpr float BASE_LABEL_PX = 13.F;
+constexpr float BASE_PAD      = 24.F;
 constexpr float BAND_GAP = 10.F; // inside the band, above and below: the results card's
 constexpr float SIDE     = 0.08F;
 constexpr float FADE_MS  = 170.F;
@@ -44,6 +44,37 @@ constexpr int   MAX_COLS = 12;
 
 // Omarchy's launcher hide list: the grid shows what Menu -> Apps shows.
 constexpr const char* SYSTEM_HIDES = "/run/current-system/sw/share/omarchy/default/omarchy/launcher.hides";
+
+// apps:scale, or this monitor's "name:scale" entry in apps:scale_monitors.
+// NixOs-dots docs/manual.md#one-app-drawer
+float userScale(const PHLMONITOR& monitor) {
+    float scale = Hyprdrive::Config::getValue<float>("plugin:hyprdrive:apps:scale");
+    if (!monitor)
+        return scale;
+    const std::string LIST = Hyprdrive::Config::getValue<std::string>("plugin:hyprdrive:apps:scale_monitors");
+    for (size_t at = 0; at < LIST.size();) {
+        size_t end = LIST.find(',', at);
+        if (end == std::string::npos)
+            end = LIST.size();
+        const std::string ENTRY = LIST.substr(at, end - at);
+        at                      = end + 1;
+        const auto COLON        = ENTRY.rfind(':');
+        if (COLON == std::string::npos)
+            continue;
+        auto trim = [](std::string v) {
+            const auto B = v.find_first_not_of(" \t");
+            const auto E = v.find_last_not_of(" \t");
+            return B == std::string::npos ? std::string{} : v.substr(B, E - B + 1);
+        };
+        if (trim(ENTRY.substr(0, COLON)) != monitor->m_name)
+            continue;
+        try {
+            scale = std::clamp(std::stof(trim(ENTRY.substr(COLON + 1))), 0.5F, 3.F);
+        } catch (...) {}
+        break;
+    }
+    return std::clamp(scale, 0.5F, 3.F);
+}
 
 struct SApp {
     std::string id, name;
@@ -171,8 +202,8 @@ CBox cellBox(int index) {
 }
 
 CBox iconBox(const CBox& cell, float scale) {
-    const double SIZE = std::round(ICON * scale);
-    return {std::round(cell.x + (cell.width - SIZE) / 2.0), std::round(cell.y + ICON_TOP * scale), SIZE, SIZE};
+    const double SIZE = std::round(BASE_ICON * scale);
+    return {std::round(cell.x + (cell.width - SIZE) / 2.0), std::round(cell.y + BASE_ICON_TOP * scale), SIZE, SIZE};
 }
 
 int indexAt(const Vector2D& point) {
@@ -186,7 +217,7 @@ int indexAt(const Vector2D& point) {
 
 Dock::SItem itemFor(PHLMONITOR monitor, int index) {
     auto item    = Dock::appItems({g_apps[sc<size_t>(index)].id}).front();
-    item.iconBox = iconBox(cellBox(index), std::max(monitor->m_scale, 0.01F));
+    item.iconBox = iconBox(cellBox(index), std::max(monitor->m_scale, 0.01F) * userScale(monitor));
     return item;
 }
 
@@ -231,8 +262,9 @@ void addTex(const SP<Render::ITexture>& tex, const CBox& box, float alpha) {
 void shapeFor(PHLMONITOR monitor) {
     const double W  = monitor->m_size.x;
     const double MG = std::max(48.0, W * SIDE);
-    g_state.cols        = std::clamp(sc<int>((W - 2 * MG - 2 * PAD) / CELL_W), 1, MAX_COLS);
-    g_state.rowsVisible = std::max(1, sc<int>((g_state.roomL - 2 * BAND_GAP - 2 * PAD) / CELL_H));
+    const float  U  = userScale(monitor);
+    g_state.cols        = std::clamp(sc<int>((W - 2 * MG - 2 * BASE_PAD * U) / (BASE_CELL_W * U)), 1, MAX_COLS);
+    g_state.rowsVisible = std::max(1, sc<int>((g_state.roomL - 2 * BAND_GAP - 2 * BASE_PAD * U) / (BASE_CELL_H * U)));
 }
 
 } // namespace
@@ -326,9 +358,9 @@ void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& 
     if (ALPHA < 0.005F)
         return;
 
-    const float  S      = std::max(monitor->m_scale, 0.01F);
-    const double H      = monitor->m_size.y * S;
-    const double CW = std::round(CELL_W * S), CH = std::round(CELL_H * S), P = std::round(PAD * S);
+    const float  S      = std::max(monitor->m_scale, 0.01F) * userScale(monitor);
+    const double H      = monitor->m_size.y * monitor->m_scale;
+    const double CW = std::round(BASE_CELL_W * S), CH = std::round(BASE_CELL_H * S), P = std::round(BASE_PAD * S);
 
     g_state.pill  = searchPill;
     g_state.cellW = CW;
@@ -345,7 +377,7 @@ void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& 
     g_state.y0          = g_state.plate.y + P;
 
     // The theme's corners and border, as the dock's menu and folder panel wear them.
-    const int ROUND = sc<int>(std::round(Hyprdrive::Config::themeRounding() * S));
+    const int ROUND = sc<int>(std::round(Hyprdrive::Config::themeRounding() * monitor->m_scale));
     Dock::frostedPlate(monitor, g_state.plate, ROUND, ALPHA);
     // (crystal: the glass's own rim is the outline)
     if (!Hyprdrive::Crystal::enabled()) {
@@ -362,7 +394,7 @@ void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& 
     const CHyprColor LABEL{INK.r, INK.g, INK.b, 0.95F};
     const auto       MOUSE = (g_pInputManager->getMouseCoordsInternal() - monitor->m_position) * monitor->m_scale;
     const int        HOVER = Dock::menuOpen() ? -1 : indexAt(MOUSE);
-    const int        FONT  = std::max(1, sc<int>(std::round(LABEL_PX * S)));
+    const int        FONT  = std::max(1, sc<int>(std::round(BASE_LABEL_PX * S)));
 
     std::vector<int> indices;
     for (int i = g_state.firstRow * g_state.cols; i < sc<int>(g_apps.size()) && visible(i); ++i)
@@ -391,7 +423,7 @@ void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& 
         const auto TEXT = OverviewRender::text(g_apps[sc<size_t>(I)].name, LABEL, FONT, false, "", sc<int>(CELL.width - std::round(12.F * S)), 500);
         if (TEXT && TEXT->ok()) {
             const double TW = TEXT->m_size.x, TH = TEXT->m_size.y;
-            addTex(TEXT, CBox{std::round(CELL.x + (CELL.width - TW) / 2.0), std::round(item.iconBox.y + item.iconBox.height + LABEL_Y * S), TW, TH}, ALPHA);
+            addTex(TEXT, CBox{std::round(CELL.x + (CELL.width - TW) / 2.0), std::round(item.iconBox.y + item.iconBox.height + BASE_LABEL_Y * S), TW, TH}, ALPHA);
         }
     }
     Dock::renderAppDots(monitor, items, ALPHA);

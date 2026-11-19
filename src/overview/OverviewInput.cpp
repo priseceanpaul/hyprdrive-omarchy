@@ -252,6 +252,9 @@ void COverview::onTouchMove(ITouch::SMotionEvent e, Event::SCallbackInfo& info) 
                 if (!touchTrack.dragging) {
                     touchTrack.dragging = true;
                     synthButton(BTN_LEFT, true);
+                    // A mini is small: the drag starts where the finger went down, not where it has got to.
+                    if (touchTrack.strip)
+                        drag.startMouseLocal = touchTrack.start;
                 }
                 g_pInputManager->simulateMouseMovement();
                 lastMousePosLocal = getOverviewMousePosLocal(PMONITOR);
@@ -325,10 +328,11 @@ void COverview::endTouch(bool tap) {
             return;
         }
         if (touchTrack.lifted && tap && !touchTrack.swiping) {
-            const auto TILE = windowAtOverviewCursor();
+            const bool wasStrip = touchTrack.strip;
+            const auto TILE = wasStrip ? windowAtStripPoint(lastMousePosLocal) : windowAtOverviewCursor();
             cancelTap();
             touchTrack      = {.timer = touchTrack.timer};
-            if (!closing && shouldShowOverviewWindow(TILE) && !shouldShowPinnedFloatingOverviewWindow(TILE))
+            if (!closing && TILE && (wasStrip ? !TILE->isHidden() && Desktop::View::validMapped(TILE) : shouldShowOverviewWindow(TILE) && !shouldShowPinnedFloatingOverviewWindow(TILE)))
                 openTileMenu(TILE);
             return;
         }
@@ -362,6 +366,13 @@ void COverview::onStillTap() {
             Hyprdrive::Dock::closeMenu();
             cancelTap();
             damage();
+            return;
+        }
+        // The app grid takes a tap as the click it is. NixOs-dots docs/manual.md#one-app-drawer
+        if (Hyprdrive::AppGrid::isOpen(MON)) {
+            cancelTap();
+            synthButton(BTN_LEFT, true);
+            synthButton(BTN_LEFT, false);
             return;
         }
         if (scratchpadCellContains(P) || altCellAt(P) || workspaceAtStripPoint(P)) {
@@ -882,8 +893,14 @@ void COverview::onCursorSelect(ITouch::SDownEvent e, Event::SCallbackInfo& info)
         if (touchTrack.active)
             return;
         touchTrack = {true, e.touchID, getOverviewMousePosLocal(pMonitor.lock()), getOverviewMousePosLocal(pMonitor.lock()), false, false, false, touchTrack.timer};
-        const auto TILE = windowAtOverviewCursor();
-        if (Hyprdrive::Config::getValue<bool>("plugin:hyprdrive:touch:tile_hold") && shouldShowOverviewWindow(TILE) && !shouldShowPinnedFloatingOverviewWindow(TILE)) {
+        // On the strip the held window is the mini under the finger, never the tile behind the band.
+        // NixOs-dots docs/manual.md#holding-in-hyprdrive
+        const auto P       = touchTrack.start;
+        const bool ONSTRIP = scratchpadCellContains(P) || altCellAt(P) || workspaceAtStripPoint(P);
+        const auto TILE    = ONSTRIP ? windowAtStripPoint(P) : windowAtOverviewCursor();
+        touchTrack.strip   = ONSTRIP;
+        if (Hyprdrive::Config::getValue<bool>("plugin:hyprdrive:touch:tile_hold") && !Hyprdrive::AppGrid::isOpen(pMonitor.lock()) &&
+            (ONSTRIP ? TILE && !TILE->isHidden() && Desktop::View::validMapped(TILE) : shouldShowOverviewWindow(TILE) && !shouldShowPinnedFloatingOverviewWindow(TILE))) {
             if (!touchTrack.timer && g_pCompositor)
                 touchTrack.timer = wl_event_loop_add_timer(g_pCompositor->m_wlEventLoop, touchHoldCb, this);
             if (touchTrack.timer)
