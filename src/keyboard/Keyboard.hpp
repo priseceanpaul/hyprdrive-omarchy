@@ -23,6 +23,8 @@ namespace Hyprdrive::Keyboard {
     // `automatic`: raised by the search on a listed monitor, so its end hides it.
     void show(PHLMONITOR monitor, bool automatic = false);
     void hide(PHLMONITOR monitor);
+    // Every monitor's, which "off", the close key and a toggle on a shown keyboard do.
+    void hideAll();
     void toggle(PHLMONITOR monitor);
     bool shown(PHLMONITOR monitor);
 
@@ -47,6 +49,7 @@ namespace Hyprdrive::Keyboard {
 
     void forgetMonitor(MONITORID id);
 
-    // hyprdrive:keyboard toggle|on|open|off|close, on the focused monitor.
+    // hyprdrive:keyboard toggle|on|open|off|close|press|move <dx> <dy>, on the focused
+    // monitor; the last two are the pad's. NixOs-dots docs/manual.md#one-keyboard
     SDispatchResult dispatch(std::string arg);
 }

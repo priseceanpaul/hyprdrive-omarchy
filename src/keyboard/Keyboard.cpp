@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cctype>
 #include <cstdlib>
 #include <format>
 #include <fstream>
@@ -32,6 +33,8 @@
 #include <hyprland/src/event/EventBus.hpp>
 #include <hyprland/src/helpers/time/Time.hpp>
 #include <hyprland/src/layout/LayoutManager.hpp>
+#include <hyprland/src/managers/EventManager.hpp>
+#include <hyprland/src/managers/SeatManager.hpp>
 #include <hyprland/src/managers/SessionLockManager.hpp>
 #include <hyprland/src/managers/fullscreen/FullscreenController.hpp>
 #include <hyprland/src/managers/eventLoop/EventLoopManager.hpp>
@@ -74,6 +77,11 @@ namespace Hyprdrive::Keyboard {
             bool            pressSymbols = false;
             bool            held         = false;
             Time::steady_tp pressedAt    = Time::steadyNow();
+
+            // The pad's selected key, drawn like a hover once the pad has moved
+            // it; a finger or the pointer takes it back. NixOs-dots docs/manual.md#one-keyboard
+            int  selRow    = 0, selCol = 0;
+            bool selActive = false;
         };
 
         std::unordered_map<MONITORID, SBoard> g_boards;
@@ -188,6 +196,27 @@ namespace Hyprdrive::Keyboard {
             return nullptr;
         }
 
+        // The keyboard's state for the pad daemon and the shell: one runtime file
+        // and one IPC event, written when it flips. NixOs-dots docs/manual.md#one-keyboard
+        void publishState() {
+            static int last = -1;
+            const bool ANY  = std::ranges::any_of(g_boards, [](const auto& P) { return P.second.shown; });
+            if (last == (ANY ? 1 : 0))
+                return;
+            last = ANY ? 1 : 0;
+            if (const char* DIR = std::getenv("XDG_RUNTIME_DIR"); DIR && *DIR)
+                std::ofstream(std::string(DIR) + "/hyprdrive-keyboard.state", std::ios::trunc) << (ANY ? "shown" : "hidden") << "\n";
+            if (g_pEventManager)
+                g_pEventManager->postEvent(SHyprIPCEvent{.event = "hyprdrivekeyboard", .data = ANY ? "1" : "0"});
+        }
+
+        // The selection kept inside the layer in view, which may be the shorter one.
+        void clampSelection(SBoard& b) {
+            const auto& ROWS = KL::rows(b.state.symbols);
+            b.selRow         = std::clamp(b.selRow, 0, sc<int>(ROWS.size()) - 1);
+            b.selCol         = std::clamp(b.selCol, 0, sc<int>(ROWS[b.selRow].size()) - 1);
+        }
+
         // ---- reserved space ----------------------------------------------------
 
         // Like a layer's exclusive zone: Hyprland's arrangeLayersForMonitor resets
@@ -265,16 +294,45 @@ namespace Hyprdrive::Keyboard {
 
         // ---- typing ------------------------------------------------------------
 
-        // A real keyboard first: its key signal is the one Hyprland's own handler
-        // listens to, so a key sent through it is a keystroke in every respect.
+        // A keyboard that types: not a headset's media keys or a mouse, which also
+        // register as keyboards and would take the seat's keymap with them.
+        // NixOs-dots docs/manual.md#one-keyboard
+        bool typesText(const SP<IKeyboard>& k) {
+            if (!k || !k->m_enabled || k->isVirtual() || !k->aq())
+                return false;
+            std::string name = k->m_deviceName;
+            std::ranges::transform(name, name.begin(), [](unsigned char c) { return std::tolower(c); });
+            for (const char* BAD : {"consumer", "system control", "headset", "headphone", "mouse", "button", "touch", "pad"}) {
+                if (name.find(BAD) != std::string::npos)
+                    return false;
+            }
+            return true;
+        }
+
+        // Hyprland's main keyboard first, then the seat's own when it is a real one, so
+        // typing never switches the seat's keymap; else the first real one named for a keyboard.
         SP<IKeyboard> typingKeyboard() {
             if (!g_pInputManager)
                 return nullptr;
             for (const auto& K : g_pInputManager->m_keyboards) {
-                if (K && K->m_enabled && !K->isVirtual() && K->aq())
+                if (K && K->m_active && typesText(K))
                     return K;
             }
-            return g_pInputManager->m_keyboards.empty() ? nullptr : g_pInputManager->m_keyboards.front();
+            if (g_pSeatManager) {
+                if (const auto SEAT = g_pSeatManager->m_keyboard.lock(); typesText(SEAT))
+                    return SEAT;
+            }
+            for (const auto& K : g_pInputManager->m_keyboards) {
+                std::string name = K ? K->m_deviceName : "";
+                std::ranges::transform(name, name.begin(), [](unsigned char c) { return std::tolower(c); });
+                if (typesText(K) && name.find("keyboard") != std::string::npos)
+                    return K;
+            }
+            for (const auto& K : g_pInputManager->m_keyboards) {
+                if (typesText(K))
+                    return K;
+            }
+            return nullptr;
         }
 
         // Aquamarine's key signal -> CKeyboard (pressed list) -> CInputManager::onKeyboardKey
@@ -321,22 +379,29 @@ namespace Hyprdrive::Keyboard {
             if (!CODE)
                 return;
 
-            std::vector<uint32_t> held;
-            if (stroke.shift || CODE->shift)
-                held.push_back(KEY_LEFTSHIFT);
-            if (stroke.mods & KL::MOD_CTRL)
-                held.push_back(KEY_LEFTCTRL);
-            if (stroke.mods & KL::MOD_ALT)
-                held.push_back(KEY_LEFTALT);
-            if (stroke.mods & KL::MOD_SUPER)
-                held.push_back(KEY_LEFTMETA);
+            // Every press gets its release, on any way out.
+            struct SHeld {
+                SP<IKeyboard>         kb;
+                std::vector<uint32_t> codes;
+                ~SHeld() {
+                    for (auto it = codes.rbegin(); it != codes.rend(); ++it)
+                        inject(kb, *it, false);
+                }
+                void press(uint32_t code) {
+                    inject(kb, code, true);
+                    codes.push_back(code);
+                }
+            } held{KB, {}};
 
-            for (const auto CODE_HELD : held)
-                inject(KB, CODE_HELD, true);
-            inject(KB, CODE->evdev, true);
-            inject(KB, CODE->evdev, false);
-            for (auto it = held.rbegin(); it != held.rend(); ++it)
-                inject(KB, *it, false);
+            if (stroke.shift || CODE->shift)
+                held.press(KEY_LEFTSHIFT);
+            if (stroke.mods & KL::MOD_CTRL)
+                held.press(KEY_LEFTCTRL);
+            if (stroke.mods & KL::MOD_ALT)
+                held.press(KEY_LEFTALT);
+            if (stroke.mods & KL::MOD_SUPER)
+                held.press(KEY_LEFTMETA);
+            held.press(CODE->evdev);
         }
 
         // One press of the key at (row, col) on this layer: its effect on the
@@ -357,9 +422,10 @@ namespace Hyprdrive::Keyboard {
 
             const KM::SOutcome OUT = KM::press(B->state, ROWS[row][col]);
             if (OUT.effect == KM::EEffect::Close)
-                hide(monitor);
+                hideAll();
             else if (OUT.effect == KM::EEffect::Stroke)
                 type(OUT.stroke);
+            clampSelection(*B);
             poke(monitor);
         }
 
@@ -372,6 +438,11 @@ namespace Hyprdrive::Keyboard {
             B->pressSymbols = symbols;
             B->held         = on;
             B->pressedAt    = Time::steadyNow();
+            if (on) {
+                B->selRow    = row;
+                B->selCol    = col;
+                B->selActive = false;
+            }
             poke(monitor);
         }
 
@@ -387,6 +458,17 @@ namespace Hyprdrive::Keyboard {
                 return;
             g_repeat = {true, monitor->m_id, row, col, symbols, touch};
             wl_event_source_timer_update(g_timer, REPEAT_DELAY_MS);
+        }
+
+        // With no keyboard up nothing of a click may be ours: a swallowed press whose
+        // release never came, or a finger that outlived its board, would eat the next.
+        void dropInputIfIdle() {
+            if (std::ranges::any_of(g_boards, [](const auto& P) { return P.second.shown; }))
+                return;
+            g_swallowed.clear();
+            g_mouse = {};
+            g_touches.clear();
+            stopRepeat();
         }
 
         int onTimer(void*) {
@@ -467,6 +549,8 @@ namespace Hyprdrive::Keyboard {
                 return;
             }
 
+            // A press that is not ours leaves no claim from an earlier click behind.
+            std::erase(g_swallowed, event.button);
             if (info.cancelled || locked())
                 return;
             const auto AT = g_pInputManager->getMouseCoordsInternal();
@@ -490,6 +574,7 @@ namespace Hyprdrive::Keyboard {
     }
 
     void init() {
+        publishState(); // a state file left by a session that crashed says hidden again
         // Not fatal when missing: then the keyboard covers windows, as it did.
         g_arrangeHook = FunctionHooks::firstMatch("Keyboard", "arrangeLayersForMonitor", rc<void*>(hkArrange), "arrangeLayersForMonitor(");
         if (g_arrangeHook && !g_arrangeHook->hook())
@@ -581,6 +666,8 @@ namespace Hyprdrive::Keyboard {
         if (g_timer)
             wl_event_source_remove(g_timer);
         g_timer = nullptr;
+        g_boards.clear();
+        publishState();
         g_repeat = {};
         g_touches.clear();
         g_swallowed.clear();
@@ -598,7 +685,9 @@ namespace Hyprdrive::Keyboard {
         B.from      = progress(B);
         B.shown     = true;
         B.automatic = automatic;
+        B.selActive = false;
         B.changedAt = Time::steadyNow();
+        publishState();
         poke(monitor);
         syncReserve(monitor);
     }
@@ -616,10 +705,23 @@ namespace Hyprdrive::Keyboard {
         B->from      = progress(*B);
         B->shown     = false;
         B->changedAt = Time::steadyNow();
+        publishState();
         if (g_repeat.armed && g_repeat.mon == monitor->m_id)
             stopRepeat();
+        dropInputIfIdle();
         poke(monitor);
         syncReserve(monitor);
+    }
+
+    void hideAll() {
+        std::vector<MONITORID> ids;
+        for (const auto& [ID, B] : g_boards)
+            ids.push_back(ID);
+        for (const auto ID : ids) {
+            if (const auto MON = monitorById(ID))
+                hide(MON);
+        }
+        dropInputIfIdle();
     }
 
     void toggle(PHLMONITOR monitor) {
@@ -708,7 +810,9 @@ namespace Hyprdrive::Keyboard {
                 const CBox  BOX  = CBox{PLATE.x + RECT.x, PLATE.y + RECT.y, RECT.w, RECT.h}.round();
 
                 const bool  LATCHED = KM::latched(KEY, B->state);
-                const float LIT     = LATCHED ? 1.F : (sc<int>(r) == B->pressRow && sc<int>(c) == B->pressCol ? FADE : 0.F);
+                const bool  SELECTED = B->selActive && sc<int>(r) == B->selRow && sc<int>(c) == B->selCol;
+                const float PRESSED  = sc<int>(r) == B->pressRow && sc<int>(c) == B->pressCol ? FADE : 0.F;
+                const float LIT      = LATCHED ? 1.F : std::max(PRESSED, SELECTED ? 0.7F : 0.F);
 
                 CRectPassElement::SRectData fill;
                 fill.box           = BOX;
@@ -755,6 +859,8 @@ namespace Hyprdrive::Keyboard {
 
     void forgetMonitor(MONITORID id) {
         g_boards.erase(id);
+        publishState();
+        dropInputIfIdle();
         g_reserved.erase(id);
         g_syncing.erase(id);
         std::erase_if(g_touches, [id](const STouch& T) { return T.mon == id; });
@@ -768,10 +874,23 @@ namespace Hyprdrive::Keyboard {
         const auto MONITOR = Desktop::focusState()->monitor();
         if (!MONITOR)
             return {.success = false, .error = "no focused monitor"};
+        int dx = 0, dy = 0;
         if (arg == "on" || arg == "open")
             show(MONITOR);
         else if (arg == "off" || arg == "close")
-            hide(MONITOR);
+            hideAll();
+        else if (arg == "press") {
+            if (const auto* B = board(MONITOR->m_id); B && B->shown && B->selActive)
+                pressKey(MONITOR, B->selRow, B->selCol, B->state.symbols);
+        } else if (std::sscanf(arg.c_str(), "move %d %d", &dx, &dy) == 2) {
+            if (auto* B = board(MONITOR->m_id); B && B->shown) {
+                clampSelection(*B);
+                KM::moveSelection(KL::rows(B->state.symbols), B->selRow, B->selCol, std::clamp(dx, -1, 1), std::clamp(dy, -1, 1));
+                B->selActive = true;
+                poke(MONITOR);
+            }
+        } else if (arg == "toggle" && std::ranges::any_of(g_boards, [](const auto& P) { return P.second.shown; }))
+            hideAll();
         else
             toggle(MONITOR);
         return {};

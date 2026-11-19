@@ -198,6 +198,31 @@ int main() {
     CHECK(!repeats(*find(false, "a")));
     CHECK(!repeats(*find(false, "⏎")));
 
+    // The selected key: rows clamp, a row change keeps the column where the new row allows, a column wraps.
+    {
+        const auto& R = rows(false);
+        int         row = 0, col = 0;
+        moveSelection(R, row, col, -1, 0);
+        CHECK(row == 0 && col == static_cast<int>(R[0].size()) - 1);
+        moveSelection(R, row, col, 1, 0);
+        CHECK(row == 0 && col == 0);
+        moveSelection(R, row, col, 0, -1);
+        CHECK(row == 0 && col == 0);
+        row = static_cast<int>(R.size()) - 1;
+        moveSelection(R, row, col, 0, 1);
+        CHECK(row == static_cast<int>(R.size()) - 1);
+        row = 0;
+        col = static_cast<int>(R[0].size()) - 1;
+        for (int i = 0; i < 20; ++i)
+            moveSelection(R, row, col, 0, 1);
+        CHECK(row == static_cast<int>(R.size()) - 1 && col < static_cast<int>(R[row].size()));
+        // A stale selection from the longer layer is clamped by a no-op move.
+        row = 0;
+        col = 99;
+        moveSelection(R, row, col, 0, 0);
+        CHECK(col == static_cast<int>(R[0].size()) - 1);
+    }
+
     std::printf("keyboard_layout_test: %d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;
 }

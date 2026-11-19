@@ -5,6 +5,7 @@
 
 #include "KeyboardLayout.hpp"
 
+#include <algorithm>
 #include <cstring>
 #include <string>
 
@@ -69,6 +70,19 @@ namespace Hyprdrive::KeyboardModel {
 
     // Only BackSpace repeats under a held finger.
     inline bool repeats(const SKey& key) { return key.kind == EKind::Key && std::strcmp(key.keysym, "BackSpace") == 0; }
+
+    // The selected key (row, col) after a pad move: a row change clamps the
+    // column to the new row, a column change wraps along its row. `rows` is the
+    // layer in view. NixOs-dots docs/manual.md#one-keyboard
+    inline void moveSelection(const Rows& rows, int& row, int& col, int dx, int dy) {
+        const int N = static_cast<int>(rows.size());
+        row         = std::clamp(row + dy, 0, N - 1);
+        col         = std::min(col, static_cast<int>(rows[row].size()) - 1);
+        if (dx) {
+            const int LEN = static_cast<int>(rows[row].size());
+            col           = ((col + dx) % LEN + LEN) % LEN;
+        }
+    }
 
     inline SOutcome press(SState& state, const SKey& key) {
         switch (key.kind) {
