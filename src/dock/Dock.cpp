@@ -1,6 +1,7 @@
 // The dock: its small renderers, render(), the frame pump and damage, and the
 // entry points other modules call. Split from one file; see DockParts.hpp.
 #include "DockParts.hpp"
+#include "KeyboardInset.hpp"
 #include "IdentityLive.hpp"
 #include "MotionSites.hpp"
 #include "FullscreenDesktop.hpp"
@@ -541,6 +542,9 @@ const char* needsFramesReason(PHLMONITOR monitor, const SLayout& layout, const S
 
     if (Motion::topChromeEasing(sc<uint64_t>(monitor->m_id)))
         return "top-chrome";
+
+    if (Hyprdrive::KeyboardInset::easing(monitor))
+        return "keyboard-inset";
 
     // X31. The wiggle's rotation changes every frame while it runs.
     //

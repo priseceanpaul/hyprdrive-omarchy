@@ -3,6 +3,8 @@
 #include "DockParts.hpp"
 #include "MotionSites.hpp"
 #include "MotionClock.hpp"
+#include "IOverview.hpp"
+#include "KeyboardInset.hpp"
 
 namespace Hyprdrive::Dock {
 using namespace DockDetail;
@@ -289,6 +291,14 @@ bool arrangeAnimating(MONITORID id) {
     return (A.active && Hyprdrive::Config::animElapsedMs(A.since) < ARRANGE_MS) || !A.exits.empty();
 }
 
+// How far the on-screen keyboard lifts the pill. Only while an overview is up on
+// the monitor, where the dock is pinned; otherwise 0. NixOs-dots docs/manual.md#the-keyboard-in-hyprdrives-search
+static float keyboardLiftL(PHLMONITOR monitor) {
+    if (!monitor || !scrollOverviewForMonitor(monitor))
+        return 0.F;
+    return std::round(Hyprdrive::KeyboardInset::easedL(monitor));
+}
+
 SLayout buildBaseLayout(PHLMONITOR monitor) {
     SLayout out;
 
@@ -327,7 +337,7 @@ SLayout buildBaseLayout(PHLMONITOR monitor) {
     // `extend-height` false and `always-center-icons` false: a floating pill
     // sized to its contents, centred on the monitor, clear of the bottom edge.
     const float XL = (sc<float>(monitor->m_size.x) - M.width) / 2.F;
-    const float YL = sc<float>(monitor->m_size.y) - edgeMargin() - M.height;
+    const float YL = sc<float>(monitor->m_size.y) - edgeMargin() - M.height - keyboardLiftL(monitor);
 
     out.pill = CBox{XL * SCALE, YL * SCALE, M.width * SCALE, M.height * SCALE};
     out.pill.round();
@@ -396,6 +406,7 @@ const SLayout& baseLayout(PHLMONITOR monitor) {
         (Config::getValue<bool>(KEY_SHOW_APPS_TOP) ? 4U : 0U) |               //
         (Config::getValue<bool>(KEY_SHOW_APPS_EDGE) ? 8U : 0U) |              //
         (islandStyle() ? 16U : 0U);
+    key.lift = keyboardLiftL(monitor);
 
     // std::unordered_map, so the reference this hands back survives a later
     // call for a DIFFERENT monitor inserting its own row.

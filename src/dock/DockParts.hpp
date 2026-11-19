@@ -841,6 +841,7 @@ struct SBaseLayoutKey {
     int      radius   = 0;
     float    fraction = 0.F;
     uint32_t flags    = 0;
+    float    lift     = 0.F; // keyboardLiftL(): the overview's on-screen keyboard
 
     bool operator==(const SBaseLayoutKey&) const = default;
 };

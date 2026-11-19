@@ -32,11 +32,25 @@ static void emitOverviewState() {
     if (OPEN == lastOpen || !g_pEventManager)
         return;
     lastOpen = OPEN;
+    if (!OPEN)
+        announceOverviewSearch(false, {}); // closed with the search up: it ends too
     g_pEventManager->postEvent(SHyprIPCEvent{.event = Hyprdrive::Compat::NAME, .data = OPEN ? "1" : "0"});
     // ONE RELEASE. A shell still listening for the pre-rename event name keeps
     // revealing itself; the plugin does not get to decide when the user's
     // quickshell config is updated.
     g_pEventManager->postEvent(SHyprIPCEvent{.event = Hyprdrive::Compat::LEGACY_NAME, .data = OPEN ? "1" : "0"});
+}
+
+// Search on an open overview, as "1,<monitor>" / "0", for the shell's keyboard.
+// Edge-detected on the payload, so a per-frame caller costs a compare.
+// NixOs-dots docs/manual.md#the-keyboard-in-hyprdrives-search
+void announceOverviewSearch(bool active, const std::string& monitor) {
+    static std::string last = "0";
+    auto               now  = active ? "1," + monitor : std::string{"0"};
+    if (now == last || !g_pEventManager)
+        return;
+    last = now;
+    g_pEventManager->postEvent(SHyprIPCEvent{.event = "hyprdrivesearch", .data = std::move(now)});
 }
 
 const std::vector<SP<IOverview>>& scrollOverviews() {

@@ -164,6 +164,8 @@ class IOverview : public IOverviewFramePolicy, public IOverviewGeometry {
 };
 
 const std::vector<SP<IOverview>>& scrollOverviews();
+// Posts "hyprdrivesearch" when search on an open overview starts or stops.
+void                              announceOverviewSearch(bool active, const std::string& monitor);
 SP<IOverview>                     scrollOverviewForMonitor(PHLMONITOR monitor);
 // The registry holds overviews in every phase, including ones still animating
 // their close (a "zombie": exists but not open -- see Z18 in Dock.cpp). This is

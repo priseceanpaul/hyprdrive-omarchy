@@ -17,6 +17,7 @@
 #include "MotionClock.hpp"
 #include "MotionMath.hpp"
 #include "Overview.hpp"
+#include "KeyboardInset.hpp"
 
 #include <cctype>
 #include <cstdio>
@@ -167,12 +168,16 @@ inline Vector2D overviewCardOriginOffsetLive(PHLMONITOR monitor, float overviewS
 
     const float TOP = std::max(0.F, (overviewTopChromeBottomL(monitor) - sc<float>(monitor->m_position.y)) * MS);
 
-    float bottom = H;
+    // The on-screen keyboard sits where the dock would, so the card ends above it.
+    // NixOs-dots docs/manual.md#the-keyboard-in-hyprdrives-search
+    const float KEYBOARD = Hyprdrive::KeyboardInset::easedL(monitor) * MS;
+
+    float bottom = std::max(TOP + 1.F, H - KEYBOARD);
     if (Hyprdrive::Dock::onMonitor(monitor)) {
         const float ICON = sc<float>(std::clamp(Hyprdrive::Config::getValue<int>("plugin:hyprdrive:dock:icon_size"), 8, 512));
         // Dock.cpp: ICON_PAD 14 on top and bottom, EDGE_MARGIN 4 under the pill.
         const float DOCKH = ICON + 14.F + 14.F + 4.F;
-        bottom            = std::max(TOP + 1.F, H - DOCKH * MS);
+        bottom            = std::max(TOP + 1.F, H - (DOCKH * MS + KEYBOARD));
     }
 
     if (bottom <= TOP + 1.F)
@@ -1735,7 +1740,13 @@ inline float overviewResultsBudgetL(PHLMONITOR monitor, size_t gridTiles) {
     if (!monitor)
         return 0.F;
 
+    // The on-screen keyboard's height: the panel stops above it, so nothing found
+    // is covered. NixOs-dots docs/manual.md#the-keyboard-in-hyprdrives-search
+    const float KEYBOARD = Hyprdrive::KeyboardInset::easedL(monitor);
+
     float budget = std::min(360.F, sc<float>(monitor->m_size.y) * 0.42F);
+    if (KEYBOARD > 0.F)
+        budget = std::min(budget, std::max(OVERVIEW_RESULT_ROWHL_FULL * 2.F, sc<float>(monitor->m_size.y) - KEYBOARD - OVERVIEW_SEARCH_ROWHL - 16.F));
 
     // With no previews the grid's own height goes to ZERO, so everything under
     // the strip is the panel's (user, 2026-09-23). What stays behind is one
@@ -1748,7 +1759,7 @@ inline float overviewResultsBudgetL(PHLMONITOR monitor, size_t gridTiles) {
     // leftover ceiling, but that ceiling is gated on gridTiles > 0, so with no
     // tiles the stack depends on nothing this budget can move.
     if (gridTiles == 0) {
-        const float SPARE = sc<float>(monitor->m_size.y) - OVERVIEW_SEARCH_ROWHL - overviewStripStackL(monitor) - sc<float>(overviewMissionControlGap());
+        const float SPARE = sc<float>(monitor->m_size.y) - KEYBOARD - OVERVIEW_SEARCH_ROWHL - overviewStripStackL(monitor) - sc<float>(overviewMissionControlGap());
         budget            = std::max(budget, SPARE);
     }
 

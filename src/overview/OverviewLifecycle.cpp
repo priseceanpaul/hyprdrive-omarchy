@@ -593,6 +593,14 @@ void COverview::onPreRender() {
     if (const auto SPECIAL = overviewShownSpecialOn(pMonitor.lock()); SPECIAL && (SPECIAL->m_renderOffset->isBeingAnimated() || SPECIAL->m_alpha->isBeingAnimated()))
         requestInputFrame();
 
+    // Search up on the overview that owns the keyboard, once a frame.
+    if (const auto MON = pMonitor.lock(); MON && activeScrollOverview().get() == this) {
+        announceOverviewSearch(g_search.query.active && !isClosing(), MON->m_name);
+        Hyprdrive::KeyboardInset::easedL(MON); // reading advances the ease
+        if (Hyprdrive::KeyboardInset::easing(MON))
+            gridSetReflowActive(MON);
+    }
+
     drawnWindows.clear();
     drawnSet.clear();
 
