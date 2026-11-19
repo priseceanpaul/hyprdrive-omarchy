@@ -414,6 +414,11 @@ static void registerConfigValuesFor() {
     // The on-screen keyboard (NixOs-dots docs/manual.md#the-keyboard-in-hyprdrives-search).
     addKey(makeShared<CStringValue>(KEY("keyboard:auto_monitors"), "monitors where the keyboard rises by itself when the overview's search opens: names, comma-separated",
                                     Hyprlang::STRING{"stream"}));
+    addKey(makeShared<CFloatValue>(KEY("keyboard:height_ratio"), "the keyboard's height as a share of the screen's (kept between 150 and 260 px)", 0.19F,
+                                   SFloatValueOptions{.min = 0.12F, .max = 0.35F}));
+    addKey(makeShared<CIntValue>(KEY("keyboard:max_width"), "the widest the keyboard grows, in logical pixels", 820, SIntValueOptions{.min = 400, .max = 1600}));
+    addKey(makeShared<CIntValue>(KEY("keyboard:repeat_delay_ms"), "how long a held repeating key waits before it starts to repeat", 400, SIntValueOptions{.min = 150, .max = 1000}));
+    addKey(makeShared<CIntValue>(KEY("keyboard:repeat_rate_ms"), "the time between repeats of a held key", 60, SIntValueOptions{.min = 20, .max = 300}));
     // The island (NixOS dots, docs/manual.md#the-hyprdrive-island): the zone here,
     // the rest read by the shell's island from hdpanel's store.
     addKey(makeShared<CBoolValue>(KEY("island:enabled"), "resting the pointer on the middle of the top edge opens the island", true));

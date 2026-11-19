@@ -247,6 +247,15 @@ KEY_META = [
     _k(PLUGIN + "touch:double_tap_exit", "bool", "touch", True),
     _k(PLUGIN + "touch:double_tap_ms", "int", "touch", 350, min=150, max=800),
     _k(PLUGIN + "touch:double_tap_px", "int", "touch", 40, min=10, max=150),
+    # Keyboard and apps (docs/manual.md#one-keyboard, #one-app-drawer in the NixOS dots)
+    _k(PLUGIN + "keyboard:auto_monitors", "str", "keyboard", "stream"),
+    _k(PLUGIN + "keyboard:height_ratio", "float", "keyboard", 0.19, min=0.12, max=0.35),
+    _k(PLUGIN + "keyboard:max_width", "int", "keyboard", 820, min=400, max=1600),
+    _k(PLUGIN + "keyboard:repeat_delay_ms", "int", "keyboard", 400, min=150, max=1000),
+    _k(PLUGIN + "keyboard:repeat_rate_ms", "int", "keyboard", 60, min=20, max=300),
+    _k(PLUGIN + "apps:scale", "float", "keyboard", 1.0, min=0.5, max=3),
+    _k(PLUGIN + "apps:scale_monitors", "str", "keyboard", ""),
+    _k(PLUGIN + "apps:fill_monitors", "str", "keyboard", "stream"),
     # Island (docs/manual.md#the-hyprdrive-island in the NixOS dots)
     _k(PLUGIN + "island:enabled", "bool", "island", True),
     _k(PLUGIN + "island:delay_ms", "int", "island", 120, min=0, max=1000),
@@ -300,7 +309,7 @@ KEY_META = [
 # Groups a power profile neither saves nor applies. Mosaic rebinds Super+L and
 # can change the default layout; plugging in the charger must not do either.
 # The Keybinds section's switches all rebind keys.
-PROFILE_SKIP = {"mosaic", "keybinds", "island", "sides", "touch"}
+PROFILE_SKIP = {"mosaic", "keybinds", "island", "sides", "touch", "keyboard"}
 
 SCROLL_ON = PLUGIN + "binds:scroll_desktops"
 SCROLL_MODS_KEY = PLUGIN + "binds:scroll_desktops_mods"

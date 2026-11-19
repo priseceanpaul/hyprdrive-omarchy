@@ -83,6 +83,10 @@ struct SSearchLayoutInputs {
     int                            selection = -1;
     // The live field's width, logical px, as its spring has it THIS frame.
     float                          fieldWL = OVERVIEW_PILL_FIELDL;
+    // The app drawer is up (or folding): the container is laid out with no results,
+    // as wide as drawerWL (logical px) allows. NixOs-dots docs/manual.md#one-app-drawer
+    bool                           drawer = false;
+    float                          drawerWL = 0.F;
 };
 
 // LAYOUT. Pure: monitor, animation values and the section set in, boxes out. It
@@ -225,7 +229,7 @@ static SSearchLayout layoutSearch(const SSearchLayoutInputs& IN, const std::vect
     // rows laid out across the rest. There is no outer panel -- the cards are
     // the surface.
     const float BANDHL = std::max(0.F, out.bandH);
-    if (SECTIONS.empty() || BANDHL <= (OVERVIEW_RESULT_PANELGAPL * 2.F) + 1.F)
+    if ((SECTIONS.empty() && !IN.drawer) || BANDHL <= (OVERVIEW_RESULT_PANELGAPL * 2.F) + 1.F)
         return out;
 
     // The ranking can shrink under a selection made against a longer list. It is
@@ -235,7 +239,7 @@ static SSearchLayout layoutSearch(const SSearchLayoutInputs& IN, const std::vect
 
     const float PAD_L      = SEARCH_PAD_L;
     const float DIV_GAPL   = SEARCH_DIV_GAPL;
-    const float MAX_SPANWL = overviewResultsSpanW(MONITOR);
+    const float MAX_SPANWL = IN.drawer ? std::max(overviewResultsSpanW(MONITOR), IN.drawerWL) : overviewResultsSpanW(MONITOR);
 
     float CONTAINER_WL = IN.width > 1.F ? std::min(IN.width, MAX_SPANWL) : 0.F;
     if (CONTAINER_WL < 8.F)
@@ -251,6 +255,8 @@ static SSearchLayout layoutSearch(const SSearchLayoutInputs& IN, const std::vect
         return out;
     container.round();
     out.containerBox = container;
+    if (SECTIONS.empty())
+        return out; // the drawer's: the grid draws its own cells inside this box
 
     // THE TOOL PANE. The rows are the tool's; lay out one header and a full-width
     // entry per row -- each still a hit, so the arrows and the pointer select
@@ -1346,7 +1352,8 @@ void COverview::renderSearch(PHLMONITOR monitor, float renderScale) {
     if (std::abs(resultsBand->goal() - TARGET) > 0.5F)
         *resultsBand = TARGET;
 
-    const float WIDTH_TARGET = PANEL ? overviewResultsWidthTarget(monitor, SECTIONS) : 0.F;
+    // The app drawer grows out of the pill in the same container, to its own width. NixOs-dots docs/manual.md#one-app-drawer
+    const float WIDTH_TARGET = Hyprdrive::AppGrid::isOpen(monitor) ? Hyprdrive::AppGrid::widthL(monitor) : PANEL ? overviewResultsWidthTarget(monitor, SECTIONS) : 0.F;
     // Grow from the pill, not from 0: a 0→span ease spends its first frames
     // on an invisible sliver, then pops. Warp onto the pill width once.
     if (WIDTH_TARGET > 50.F && resultsWidth->value() < 50.F)
@@ -1405,6 +1412,8 @@ void COverview::renderSearch(PHLMONITOR monitor, float renderScale) {
         .emptyResult = EMPTYRESULT,
         .selection   = g_search.nav.selection,
         .fieldWL     = FIELDMOTION.drawWidthL,
+        .drawer      = Hyprdrive::AppGrid::containerUp(monitor) && !EMPTYRESULT,
+        .drawerWL    = Hyprdrive::AppGrid::widthL(monitor),
     };
 
     SSearchLayout LAYOUT = layoutSearch(IN, RESULTS, SECTIONS);

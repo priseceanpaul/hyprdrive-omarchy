@@ -62,8 +62,9 @@ namespace Hyprdrive::Keyboard {
         constexpr float REVEAL_MS = 260.F;
         constexpr float TAIL_MS   = 40.F; // one more frame, so the last one is drawn clean
         constexpr float PRESS_MS  = 220.F;
-        constexpr int   REPEAT_DELAY_MS = 400;
-        constexpr int   REPEAT_MS       = 60;
+        // Read live each time. NixOs-dots docs/manual.md#one-keyboard
+        int repeatDelayMs() { return Hyprdrive::Config::getValue<int>("plugin:hyprdrive:keyboard:repeat_delay_ms"); }
+        int repeatMs() { return Hyprdrive::Config::getValue<int>("plugin:hyprdrive:keyboard:repeat_rate_ms"); }
 
         struct SBoard {
             bool            shown     = false;
@@ -141,11 +142,11 @@ namespace Hyprdrive::Keyboard {
         }
 
         float heightL(PHLMONITOR monitor) {
-            return KL::boardHeightL(sc<float>(monitor->m_size.y), MARGIN_L);
+            return KL::boardHeightL(sc<float>(monitor->m_size.y), MARGIN_L, Hyprdrive::Config::getValue<float>("plugin:hyprdrive:keyboard:height_ratio"));
         }
 
         float widthL(PHLMONITOR monitor) {
-            return KL::boardWidthL(sc<float>(monitor->m_size.x), MARGIN_L);
+            return KL::boardWidthL(sc<float>(monitor->m_size.x), MARGIN_L, sc<float>(Hyprdrive::Config::getValue<int>("plugin:hyprdrive:keyboard:max_width")));
         }
 
         // The plate at rest, centred, monitor-local RENDER px; `slid` is where it is now.
@@ -457,7 +458,7 @@ namespace Hyprdrive::Keyboard {
             if (!g_timer || row < 0 || !KM::repeats(ROWS[row][col]))
                 return;
             g_repeat = {true, monitor->m_id, row, col, symbols, touch};
-            wl_event_source_timer_update(g_timer, REPEAT_DELAY_MS);
+            wl_event_source_timer_update(g_timer, repeatDelayMs());
         }
 
         // With no keyboard up nothing of a click may be ours: a swallowed press whose
@@ -487,7 +488,7 @@ namespace Hyprdrive::Keyboard {
                 g_mouse.fired = true;
             pressKey(MON, g_repeat.row, g_repeat.col, g_repeat.symbols);
             hold(MON, g_repeat.row, g_repeat.col, g_repeat.symbols, true);
-            wl_event_source_timer_update(g_timer, REPEAT_MS);
+            wl_event_source_timer_update(g_timer, repeatMs());
             return 0;
         }
 

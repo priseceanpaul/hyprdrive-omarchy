@@ -1419,6 +1419,7 @@ Item {
         case "toggle": return toggleControl
         case "slider": return sliderControl
         case "choice": return choiceControl
+        case "text": return textControl
         case "speed": return speedControl
         case "motion": return motionControl
         case "blur": return blurControl
@@ -1605,6 +1606,55 @@ Item {
       valueText: root.formatValue(row, current)
       onMoved: function(v) { root.previewKey(row.key, v) }
       onReleased: function(v) { root.setKey(row.key, v) }
+    }
+  }
+
+  // A line of text (a list of monitor names): saved when Enter is pressed or
+  // focus leaves, so a half-typed name is never applied.
+  Component {
+    id: textControl
+    Rectangle {
+      id: textBox
+      property var row: parent ? parent.row : ({})
+      property bool live: parent ? parent.live : true
+      readonly property string stored: String(root.k(row.key, "") || "")
+      function commit() {
+        if (textInput.text !== stored) root.setKey(row.key, textInput.text.trim())
+      }
+      implicitWidth: Style.space(240)
+      implicitHeight: Style.space(34)
+      radius: Style.space(8)
+      color: root.tint(root.fg, 0.03)
+      border.width: 1
+      border.color: textInput.activeFocus ? root.accent : root.hairline
+      opacity: live ? 1 : 0.45
+      TextInput {
+        id: textInput
+        anchors.fill: parent
+        anchors.leftMargin: Style.space(12)
+        anchors.rightMargin: Style.space(12)
+        verticalAlignment: TextInput.AlignVCenter
+        color: root.fg
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        selectByMouse: true
+        clip: true
+        enabled: textBox.live
+        text: textBox.stored
+        onAccepted: { textBox.commit(); keys.forceActiveFocus() }
+        Keys.onEscapePressed: function(e) { text = textBox.stored; keys.forceActiveFocus(); e.accepted = true }
+        Keys.onUpPressed: function(e) { e.accepted = true }
+        Keys.onDownPressed: function(e) { e.accepted = true }
+        onActiveFocusChanged: if (!activeFocus) textBox.commit()
+        Text {
+          textFormat: Text.PlainText
+          visible: !parent.text
+          text: textBox.row.placeholder || ""
+          color: root.faint
+          font: parent.font
+          anchors.verticalCenter: parent.verticalCenter
+        }
+      }
     }
   }
 

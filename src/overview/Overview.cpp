@@ -801,13 +801,8 @@ void COverview::render() {
     renderSwapTargetDim(MONITOR);
     renderDraggedWindow(MONITOR, ACTIVEIDX, PITCH, SCALE, NOW);
     renderSwapLabel(MONITOR);
-    // G5's app grid, under the bar and the dock. NixOs-dots docs/manual.md#the-hyprdrive-app-grid
-    {
-        // The results card's box, as layoutSearch places it.
-        const auto& SLH = searchLayoutHere();
-        const CBox  BAND{sc<double>(MONITOR->m_position.x), MONITOR->m_position.y + SLH.rowL + OVERVIEW_RESULT_PANELGAPL, sc<double>(MONITOR->m_size.x), std::max(0.F, SLH.bandH - 2.F * OVERVIEW_RESULT_PANELGAPL)};
-        Hyprdrive::AppGrid::render(MONITOR, overviewGridProgress(SCALE), SLH.pill, getOverviewGlobalBox(BAND, MONITOR, SCALE, OVERVIEW_CHROME_NO_PAN, 0.F, layout));
-    }
+    // G5's app grid, under the bar and the dock. NixOs-dots docs/manual.md#one-app-drawer
+    Hyprdrive::AppGrid::render(MONITOR, overviewGridProgress(SCALE), searchLayoutHere().pill, searchLayoutHere().containerBox);
 
     // TOP layers (the bar) here, under the dock. OVERLAY waits until after the
     // dock and the captions -- see the end of this function.

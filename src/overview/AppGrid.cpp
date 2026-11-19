@@ -1,6 +1,4 @@
 #include "AppGrid.hpp"
-#include "Crystal.hpp"
-
 #include "AppSearch.hpp"
 #include "Config.hpp"
 #include "Dock.hpp"
@@ -22,7 +20,6 @@
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/output/Monitor.hpp>
 #include <hyprland/src/render/Renderer.hpp>
-#include <hyprland/src/render/pass/BorderPassElement.hpp>
 #include <hyprland/src/render/pass/RectPassElement.hpp>
 #include <hyprland/src/render/pass/TexPassElement.hpp>
 #include <xkbcommon/xkbcommon-keysyms.h>
@@ -39,7 +36,7 @@ constexpr float BASE_ICON_TOP = 16.F;
 constexpr float BASE_LABEL_Y  = 18.F; // below the icon, leaving the running dots room
 constexpr float BASE_LABEL_PX = 13.F;
 constexpr float BASE_PAD      = 24.F;
-constexpr float BAND_GAP = 10.F; // inside the band, above and below: the results card's
+constexpr float BAND_GAP = 10.F; // inside the band, above and below: the container's
 constexpr float SIDE     = 0.08F;
 constexpr float FILL_SIDE = 0.03F; // a fill monitor's side margin, as a share of its width
 constexpr float MOMENTUM_S = 0.25F; // how far a flick carries, in seconds of its release speed
@@ -269,7 +266,7 @@ CBox iconBox(const CBox& cell, float scale) {
 }
 
 int indexAt(const Vector2D& point) {
-    if (!g_state.plate.containsPoint(point) || (g_state.frac > 0.0 && !g_state.view.containsPoint(point)))
+    if (!g_state.plate.containsPoint(point) || !g_state.view.containsPoint(point))
         return -1;
     for (int i = g_state.firstRow * g_state.cols; i < sc<int>(g_apps.size()) && visible(i); ++i)
         if (cellBox(i).containsPoint(point))
@@ -323,12 +320,17 @@ void addTex(const SP<Render::ITexture>& tex, const CBox& box, float alpha, const
 
 // The grid's shape on this monitor, shared by the band it asks for and the
 // render that fills it.
-void shapeFor(PHLMONITOR monitor) {
+int colsFor(PHLMONITOR monitor, bool fill) {
     const double W  = monitor->m_size.x;
-    g_state.fill    = fillMonitor(monitor);
-    const double MG = g_state.fill ? std::max(12.0, W * FILL_SIDE) : std::max(48.0, W * SIDE);
+    const double MG = fill ? std::max(12.0, W * FILL_SIDE) : std::max(48.0, W * SIDE);
     const float  U  = userScale(monitor);
-    g_state.cols        = std::clamp(sc<int>((W - 2 * MG - 2 * BASE_PAD * U) / (BASE_CELL_W * U)), 1, MAX_COLS);
+    return std::clamp(sc<int>((W - 2 * MG - 2 * BASE_PAD * U) / (BASE_CELL_W * U)), 1, MAX_COLS);
+}
+
+void shapeFor(PHLMONITOR monitor) {
+    const float U       = userScale(monitor);
+    g_state.fill        = fillMonitor(monitor);
+    g_state.cols        = colsFor(monitor, g_state.fill);
     g_state.rowsVisible = std::max(1, sc<int>((g_state.roomL - 2 * BAND_GAP - 2 * BASE_PAD * U) / (BASE_CELL_H * U)));
 }
 
@@ -342,6 +344,20 @@ float fillRoomL(PHLMONITOR monitor) {
 }
 
 } // namespace
+
+bool containerUp(PHLMONITOR monitor) {
+    return ownerOn(monitor) != nullptr;
+}
+
+float widthL(PHLMONITOR monitor) {
+    if (!monitor)
+        return 0.F;
+    const double W = monitor->m_size.x;
+    if (fillMonitor(monitor))
+        return sc<float>(W - 2 * std::max(12.0, W * FILL_SIDE));
+    const float U = userScale(monitor);
+    return sc<float>(colsFor(monitor, false) * BASE_CELL_W * U + 2 * BASE_PAD * U);
+}
 
 float coverFade(PHLMONITOR monitor) {
     if (!monitor || !g_state.fill || monitor->m_id != g_state.monitor || !ownerOn(monitor))
@@ -427,7 +443,7 @@ void toggle(PHLMONITOR monitor) {
         open(monitor);
 }
 
-void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& band) {
+void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& container) {
     const auto OVERVIEW = ownerOn(monitor);
     if (!OVERVIEW)
         return;
@@ -436,38 +452,45 @@ void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& 
     syncHiding(monitor);
     if (msSince(g_state.changedAt) < FADE_MS)
         frame(monitor);
+    // The plate is the search's own container (it grows out of the pill and folds back into it);
+    // only the cells fade. NixOs-dots docs/manual.md#one-app-drawer
     const float ALPHA = progress() * fade;
-    if (ALPHA < 0.005F)
+    if (ALPHA < 0.005F || container.width < 2 || container.height < 2)
         return;
 
     const float  S      = std::max(monitor->m_scale, 0.01F) * userScale(monitor);
     const double H      = monitor->m_size.y * monitor->m_scale;
     const double CW0 = std::round(BASE_CELL_W * S), CH0 = std::round(BASE_CELL_H * S), P = std::round(BASE_PAD * S);
-    double       CW = CW0, CH = CH0;
 
     g_state.pill = searchPill;
-    shapeFor(monitor);
-    // A fill monitor spreads normal-size icons over cells that reach its side margins and the band's height.
-    if (g_state.fill) {
-        const double SIDEPX = std::round(std::max(12.0, monitor->m_size.x * FILL_SIDE) * monitor->m_scale);
-        CW                  = std::max(CW0, std::floor((monitor->m_size.x * monitor->m_scale - 2 * SIDEPX - 2 * P) / g_state.cols));
-        if (band.height >= 2 * P + CH0) {
-            g_state.rowsVisible = std::max(1, sc<int>((band.height - 2 * P) / CH0));
-            CH                  = std::floor((band.height - 2 * P) / g_state.rowsVisible);
+    // The shape is the open grid's; folding back keeps the last one so the cells do not jump.
+    if (g_state.shown) {
+        shapeFor(monitor);
+        double CW = CW0, CH = CH0;
+        // A fill monitor spreads normal-size icons over cells that reach its side margins and the container's resting height.
+        if (g_state.fill) {
+            const double SIDEPX  = std::round(std::max(12.0, monitor->m_size.x * FILL_SIDE) * monitor->m_scale);
+            const double RESTH   = (g_state.roomL - 2.F * BAND_GAP) * monitor->m_scale;
+            CW                   = std::max(CW0, std::floor((monitor->m_size.x * monitor->m_scale - 2 * SIDEPX - 2 * P) / g_state.cols));
+            if (RESTH >= 2 * P + CH0) {
+                g_state.rowsVisible = std::max(1, sc<int>((RESTH - 2 * P) / CH0));
+                CH                  = std::floor((RESTH - 2 * P) / g_state.rowsVisible);
+            }
         }
+        g_state.extraTop = std::round((CH - CH0) / 2.0);
+        g_state.cellW    = CW;
+        g_state.cellH    = CH;
     }
-    g_state.extraTop = std::round((CH - CH0) / 2.0);
-    g_state.cellW    = CW;
-    g_state.cellH    = CH;
-
-    // The results card's own box, so it grows and folds with the band; as wide as its columns.
-    const double PLATEW = g_state.cols * CW + 2 * P;
-    if (band.height < 2 * P || band.y + CH + 2 * P > H)
+    const double CH = g_state.cellH;
+    if (container.height < 2 * P || container.y + CH + 2 * P > H)
         return;
-    g_state.plate = CBox{std::round(band.x + (band.width - PLATEW) / 2.0), std::round(band.y), PLATEW, std::round(band.height)};
-    g_state.x0          = g_state.plate.x + P;
-    g_state.y0          = g_state.plate.y + P;
-    g_state.view        = CBox{g_state.plate.x, g_state.y0, PLATEW, g_state.plate.height - P};
+
+    // Cells sit where the open grid puts them, centred on the container as it grows and folds;
+    // the container's own edge clips them.
+    g_state.plate = container;
+    g_state.x0    = std::round(container.x + (container.width - g_state.cols * g_state.cellW) / 2.0);
+    g_state.y0    = container.y + P;
+    g_state.view  = CBox{container.x, g_state.y0, container.width, container.height - P};
 
     // A touch glide runs here, a frame at a time, toward its row boundary.
     if (g_state.settling) {
@@ -479,19 +502,7 @@ void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& 
     }
     clampScroll();
 
-    // The theme's corners and border, as the dock's menu and folder panel wear them.
     const int ROUND = sc<int>(std::round(Hyprdrive::Config::themeRounding() * monitor->m_scale));
-    Dock::frostedPlate(monitor, g_state.plate, ROUND, ALPHA);
-    // (crystal: the glass's own rim is the outline)
-    if (!Hyprdrive::Crystal::enabled()) {
-        CBorderPassElement::SBorderData border;
-        border.box           = g_state.plate.copy().round();
-        border.grad1         = Hyprdrive::Config::themeBorder(ALPHA);
-        border.borderSize    = std::max(1, Hyprdrive::Config::getValue<int>("general:border_size"));
-        border.round         = ROUND;
-        border.roundingPower = Hyprdrive::Config::themeRoundingPower();
-        g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(border));
-    }
 
     const auto       INK = Hyprdrive::Config::themeForeground();
     const CHyprColor LABEL{INK.r, INK.g, INK.b, 0.95F};
@@ -499,12 +510,11 @@ void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& 
     const int        HOVER = Dock::menuOpen() ? -1 : indexAt(MOUSE);
     const int        FONT  = std::max(1, sc<int>(std::round(BASE_LABEL_PX * S)));
 
-    // At rest only whole rows; mid-scroll, any row that reaches into the view, clipped to it.
-    const bool       SCROLLED = g_state.frac > 0.0;
+    // Any row that reaches into the view, clipped to it: the container is still growing, or mid-scroll.
     const double     VIEWEND  = g_state.view.y + g_state.view.height;
     std::vector<int> indices;
     for (int i = g_state.firstRow * g_state.cols; i < sc<int>(g_apps.size()) && visible(i); ++i)
-        if (SCROLLED ? cellBox(i).y + CH > g_state.view.y && cellBox(i).y < VIEWEND : cellBox(i).y + CH <= VIEWEND)
+        if (cellBox(i).y + CH > g_state.view.y && cellBox(i).y < VIEWEND)
             indices.push_back(i);
 
     std::vector<std::string> ids;
@@ -543,7 +553,7 @@ void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& 
         const double TRACK = g_state.plate.height - 2 * P, BARW = std::round(4.F * S);
         const double THUMB = std::max(std::round(24.0 * S), TRACK * g_state.rowsVisible / TOTAL);
         const double Y     = g_state.plate.y + P + (TRACK - THUMB) * offsetPx() / std::max(1.0, maxOffsetPx());
-        addRect(CBox{g_state.plate.x + PLATEW - P / 2.0 - BARW / 2.0, std::round(Y), BARW, std::round(THUMB)}, INK.modifyA(0.35F * ALPHA), std::min(ROUND, sc<int>(BARW / 2.0)));
+        addRect(CBox{g_state.plate.x + g_state.plate.width - P / 2.0 - BARW / 2.0, std::round(Y), BARW, std::round(THUMB)}, INK.modifyA(0.35F * ALPHA), std::min(ROUND, sc<int>(BARW / 2.0)));
     }
 }
 

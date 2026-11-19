@@ -27,9 +27,15 @@ float bandL(PHLMONITOR monitor, float withTilesL, float aloneL, float bandNowL);
 // The grid is open on this window's monitor, so its tile is out of the overview.
 bool hidesWindow(const PHLWINDOW& window);
 
+// The drawer lives in the search's results container, which grows out of the pill:
+// containerUp says the grid owns this monitor's overview (open, or folding back),
+// widthL what that container grows to, in logical px. NixOs-dots docs/manual.md#one-app-drawer
+bool  containerUp(PHLMONITOR monitor);
+float widthL(PHLMONITOR monitor);
+
 // After the search, before the bar and dock, so the dock's menu lands on top.
-// band: the results card's box this frame, render px.
-void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& band);
+// container: the search's results container this frame, render px; the cells draw inside it.
+void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& container);
 
 // The overview's input hooks; true = claimed. Monitor-local render px.
 bool handleButton(PHLMONITOR monitor, const Vector2D& point, uint32_t button, bool pressed, uint32_t mainButton, uint32_t menuButton);

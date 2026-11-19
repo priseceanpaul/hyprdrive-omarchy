@@ -112,6 +112,13 @@ int main() {
     CHECK(near(boardWidthL(906.F, 4.F), 820.F));
     CHECK(near(boardWidthL(600.F, 4.F), 592.F));
     CHECK(near(boardWidthL(1920.F, 4.F), 820.F));
+    // keyboard:height_ratio and keyboard:max_width move them; the 150..260 clamp and the screen still bound them.
+    CHECK(near(boardHeightL(1000.F, 4.F, 0.25F), 250.F));
+    CHECK(near(boardHeightL(1000.F, 4.F, 0.35F), 260.F));
+    CHECK(near(boardHeightL(1000.F, 4.F, 0.12F), 150.F));
+    CHECK(near(boardWidthL(1920.F, 4.F, 1200.F), 1200.F));
+    CHECK(near(boardWidthL(1920.F, 4.F, 400.F), 400.F));
+    CHECK(near(boardWidthL(600.F, 4.F, 1600.F), 592.F));
 
     // Hit testing: a key's centre finds it, a gap finds nothing, outside finds nothing.
     {

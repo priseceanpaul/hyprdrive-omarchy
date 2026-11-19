@@ -96,15 +96,16 @@ namespace Hyprdrive::KeyboardLayout {
         float                           unit = 0.F; // the smaller side of a key: what labels follow
     };
 
-    // The board's height in logical px: 19% of the screen between 150 and 260,
-    // and never more than the screen less its margins.
-    inline float boardHeightL(float monitorHeightL, float marginL) {
-        return std::clamp(std::clamp(monitorHeightL * 0.19F, 150.F, 260.F), 1.F, std::max(1.F, monitorHeightL - 2.F * marginL));
+    // The board's height in logical px: `ratio` of the screen (keyboard:height_ratio,
+    // 19% by default) between 150 and 260, never more than the screen less its margins.
+    inline float boardHeightL(float monitorHeightL, float marginL, float ratio = 0.19F) {
+        return std::clamp(std::clamp(monitorHeightL * ratio, 150.F, 260.F), 1.F, std::max(1.F, monitorHeightL - 2.F * marginL));
     }
 
-    // Its width: the screen less a margin each side, and no wider than 820.
-    inline float boardWidthL(float monitorWidthL, float marginL) {
-        return std::max(1.F, std::min(monitorWidthL - 2.F * marginL, 820.F));
+    // Its width: the screen less a margin each side, and no wider than `maxWidth`
+    // (keyboard:max_width, 820 by default).
+    inline float boardWidthL(float monitorWidthL, float marginL, float maxWidth = 820.F) {
+        return std::max(1.F, std::min(monitorWidthL - 2.F * marginL, maxWidth));
     }
 
     // The smallest a label is drawn, in logical px: keys shrink before this does.

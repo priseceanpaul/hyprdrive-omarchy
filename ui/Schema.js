@@ -7,6 +7,7 @@
 // A row's `type` picks its control:
 //   toggle   -- a switch                        (key)
 //   slider   -- a value on a track              (key, min, max, step, unit, fmt)
+//   text     -- a line of text, saved on Enter or when it loses focus  (key, placeholder)
 //   choice   -- a segmented control / dropdown  (key, options from hdpanel meta)
 //   curve    -- the animation-curve picker      (key)
 //   speed    -- anim_scale shown as a speed     (key)
@@ -393,6 +394,32 @@ var sections = [
           desc: "How quickly the second tap must follow the first." },
         { type: "slider", key: P + "touch:double_tap_px", label: "Double tap reach", min: 10, max: 150, step: 5, unit: "px",
           desc: "How close the second tap must land to the first." }
+      ]}
+    ]
+  },
+  {
+    id: "keyboard", title: "Keyboard & Apps", icon: "\uf11c", group: "keyboard",
+    subtitle: "The on-screen keyboard and the app drawer, for a touchscreen such as a phone streaming this desktop.",
+    cards: [
+      { title: "Keyboard", rows: [
+        { type: "text", key: P + "keyboard:auto_monitors", label: "Rises by itself on", placeholder: "stream, DP-1",
+          desc: "Screens where the keyboard comes up when the overview's search opens. Monitor names, separated by commas; empty, it never rises by itself." },
+        { type: "slider", key: P + "keyboard:height_ratio", label: "Height", min: 0.12, max: 0.35, step: 0.01, fmt: "percent",
+          desc: "How much of the screen's height the keyboard takes, kept between 150 and 260 px." },
+        { type: "slider", key: P + "keyboard:max_width", label: "Widest", min: 400, max: 1600, step: 20, unit: "px",
+          desc: "The keyboard never grows wider than this, and never wider than the screen." },
+        { type: "slider", key: P + "keyboard:repeat_delay_ms", label: "Repeat delay", min: 150, max: 1000, step: 50, unit: "ms",
+          desc: "How long a finger holds a key such as backspace before it starts repeating." },
+        { type: "slider", key: P + "keyboard:repeat_rate_ms", label: "Repeat interval", min: 20, max: 300, step: 10, unit: "ms",
+          desc: "The time between repeats while the key is held. Lower is faster." }
+      ]},
+      { title: "App drawer", rows: [
+        { type: "slider", key: P + "apps:scale", label: "Size", min: 0.5, max: 3, step: 0.1, fmt: "fraction",
+          desc: "The app grid's size as a multiple of its own: cells, icons, labels and padding." },
+        { type: "text", key: P + "apps:scale_monitors", label: "Size per screen", placeholder: "stream:1.8",
+          desc: "A size for named screens, as name:size pairs separated by commas. A screen listed here ignores the size above." },
+        { type: "text", key: P + "apps:fill_monitors", label: "Covers the workspace on", placeholder: "stream",
+          desc: "Screens where the drawer grows to cover the workspace, with icons at normal size. Monitor names, separated by commas." }
       ]}
     ]
   },
