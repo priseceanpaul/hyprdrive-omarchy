@@ -453,6 +453,10 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         }
     });
 
+    // The on-screen keyboard's pointer and touch listeners go in BEFORE the dock's
+    // and the overview's, so a press on it is its own. NixOs-dots docs/manual.md#the-keyboard-in-hyprdrives-search
+    Hyprdrive::Keyboard::init();
+
     g_pDockHoverHook = Event::bus()->m_events.input.mouse.move.listen([](Vector2D, Event::SCallbackInfo& info) {
         const auto HIT = monitorUnderCursor();
 
@@ -513,7 +517,8 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         // An open fan's gaps count too (Stacks::ownsHover): crossing between
         // its papers must not focus the window under them.
         const bool ON_CHROME = !scrollOverviewForMonitor(MONITOR) && !Hyprdrive::DockDrop::dndInProgress() &&
-            (Hyprdrive::Dock::occupiesPointer(MONITOR, LOCAL) || Hyprdrive::Stacks::ownsHover(MONITOR, LOCAL));
+            (Hyprdrive::Dock::occupiesPointer(MONITOR, LOCAL) || Hyprdrive::Stacks::ownsHover(MONITOR, LOCAL) ||
+                                                                                         Hyprdrive::Keyboard::contains(MONITOR, LOCAL));
         if (ON_CHROME)
             info.cancelled = true;
         // The cancel also skips Hyprland's cursor-shape update, so a pointer that
@@ -699,6 +704,8 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         Hyprdrive::Dock::render(MONITOR);
         // A file dragged out of a fan: its icon under the pointer, over the dock.
         Hyprdrive::DockDrop::renderGhost(MONITOR);
+        // The on-screen keyboard, over the dock (an open overview draws its own, Overview.cpp).
+        Hyprdrive::Keyboard::render(MONITOR);
     });
 
     // THE SEAT GOES BACK WHEN THE DOCK STANDS DOWN, not on the next motion
@@ -763,6 +770,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         dropScrollOverviewsForMonitor(monitor);
         if (monitor) {
             Hyprdrive::Dock::forgetMonitor(monitor->m_id);
+            Hyprdrive::Keyboard::forgetMonitor(monitor->m_id);
             if (const auto OPENGL = g_pHyprRenderer ? g_pHyprRenderer->glBackend() : WP<Render::GL::CHyprOpenGLImpl>{})
                 OPENGL->makeEGLCurrent();
             Hyprdrive::releaseWallpaperStash(monitor->m_id);
@@ -774,6 +782,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 
     Hyprdrive::Config::registerDispatcher("overview", ::onOverviewDispatcher);
     Hyprdrive::Config::registerDispatcher("apps", ::onAppsDispatcher);
+    Hyprdrive::Config::registerDispatcher("keyboard", Hyprdrive::Keyboard::dispatch);
     Hyprdrive::Config::registerDispatcher("dragscale", Hyprdrive::HotCorner::onDragScale);
     Hyprdrive::Config::registerDispatcher("navigate", ::onNavigateDispatcher);
     Hyprdrive::Config::registerDispatcher("window", ::onWindowDispatcher);
@@ -1043,6 +1052,7 @@ APICALL EXPORT void PLUGIN_EXIT() {
     // through it, and the spring timer must not fire into unloaded code.
     Hyprdrive::SpringLoad::shutdown();
     Hyprdrive::TouchBridge::shutdown();
+    Hyprdrive::Keyboard::shutdown();
     Hyprdrive::HotCorner::shutdown();
     Hyprdrive::FingerSwipe::shutdown();
 

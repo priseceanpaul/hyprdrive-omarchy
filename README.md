@@ -440,6 +440,7 @@ one above it.
 | `hotkey` | `overlay`, or `1`–`10` | Dock slot (unbound here; Super+digit is workspaces, unless the panel's Keybinds section turns dock hotkeys on) |
 | `desktop` | `next`, `prev` | One desktop along the focused monitor's row (`binds:scroll_desktops_stop_at_empty` / `_populated_only`; no wrap); with the overview open, its focused desktop card |
 | `show_desktop` | `toggle`, `on`, `off` | Slide the desktop's windows out of view and back (Super+D) |
+| `keyboard` | `toggle`, `on`/`open`, `off`/`close` | The on-screen keyboard on the focused monitor; the overview's search raises it by itself on the monitors in `keyboard:auto_monitors` |
 | `stack` | `pin`/`unpin`/`toggle`/`open` `<path>`, `view auto\|fan\|grid <path>`, `sort name\|added\|modified\|kind <path>`, `clear` | Pin and configure dock stacks |
 
 ```lua

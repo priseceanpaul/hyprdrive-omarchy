@@ -64,6 +64,16 @@ SDispatcher* findDispatcher(const std::string_view name) {
             .luaFunction     = [](lua_State* L) { return dispatcherFactoryLua(L, "apps"); },
             .luaLegacy       = [](lua_State* L) { return dispatcherFactoryLua(L, "apps"); },
         },
+        // The on-screen keyboard (Keyboard.hpp): hl.plugin.hyprdrive.keyboard("toggle").
+        {
+            .name            = "keyboard",
+            .argPattern      = std::regex{"^(toggle|on|open|off|close)$"},
+            .defaultArg      = "toggle",
+            .typeArgError    = "expected an optional string argument; did you forget quotes around it?",
+            .invalidArgError = "expected one of: toggle, on, open, off, close",
+            .luaFunction     = [](lua_State* L) { return dispatcherFactoryLua(L, "keyboard"); },
+            .luaLegacy       = [](lua_State* L) { return dispatcherFactoryLua(L, "keyboard"); },
+        },
         {
             .name            = "navigate",
             .argPattern      = std::regex{"^(left|right|up|down)$"},

@@ -839,6 +839,8 @@ void COverview::render() {
     // dock on the active card. Flush them after the pill so the label is the
     // thing you read, not the thing the dock covers.
     TileChrome::renderCaptions(MONITOR);
+    // The on-screen keyboard, over the dock it lifts (the desktop's own is main.cpp's).
+    Hyprdrive::Keyboard::render(MONITOR);
 
     // OVERLAY layers go LAST, above the dock and the captions. That layer is
     // Omarchy's transient chrome -- the volume/brightness OSD, notification

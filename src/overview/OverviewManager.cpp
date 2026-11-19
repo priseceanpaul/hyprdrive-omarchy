@@ -9,6 +9,7 @@
 #include <hyprland/src/managers/EventManager.hpp>
 
 #include "Compat.hpp"
+#include "Keyboard.hpp"
 #include <hyprland/src/managers/eventLoop/EventLoopManager.hpp>
 #include <hyprland/src/output/Monitor.hpp>
 
@@ -50,6 +51,7 @@ void announceOverviewSearch(bool active, const std::string& monitor) {
     if (now == last || !g_pEventManager)
         return;
     last = now;
+    Hyprdrive::Keyboard::onSearch(active, monitor);
     g_pEventManager->postEvent(SHyprIPCEvent{.event = "hyprdrivesearch", .data = std::move(now)});
 }
 

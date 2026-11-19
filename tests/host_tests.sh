@@ -62,6 +62,8 @@
 #                     stop, join, the shutdown deadline and abandonment.
 #   terminate_log_test  TerminateLog.hpp, in children that really terminate:
 #                     the record, the chain to the previous handler, the cap.
+#   keyboard_layout_test  KeyboardLayout.hpp / KeyboardModel.hpp: the two key layers,
+#                     the box maths and what each key types or latches.
 #   demangle_test     Demangle.hpp: `debug hooks` names and signatures read
 #                     as C++, not as mangled symbols.
 #   overview_gesture_decision_test  OverviewGestureDecision.hpp: open or
@@ -217,6 +219,7 @@ run terminate_log_test tests/unit/terminate_log_test.cpp src/debug/TerminateLog.
 run demangle_test tests/unit/demangle_test.cpp
 run overview_gesture_decision_test tests/unit/overview_gesture_decision_test.cpp
 run hot_corner_test tests/unit/hot_corner_test.cpp
+run keyboard_layout_test tests/unit/keyboard_layout_test.cpp
 run desktop_step_test tests/unit/desktop_step_test.cpp
 run row_test tests/unit/row_test.cpp
 run desktop_plan_test tests/unit/desktop_plan_test.cpp

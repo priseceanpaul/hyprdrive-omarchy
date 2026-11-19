@@ -77,6 +77,7 @@ using namespace Hyprutils::String;
 #include "FullscreenDesktop.hpp"
 #include "Rows.hpp"
 #include "ShowDesktop.hpp"
+#include "Keyboard.hpp"
 #include "OwnSizeTile.hpp"
 #include "HoverActions.hpp"
 #include "Mosaic.hpp"

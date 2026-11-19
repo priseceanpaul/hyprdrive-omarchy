@@ -405,6 +405,9 @@ static void registerConfigValuesFor() {
     addKey(makeShared<CBoolValue>(KEY("touch:double_tap_exit"), "empty space in the overview needs a double tap to leave; off, one tap leaves", true));
     addKey(makeShared<CIntValue>(KEY("touch:double_tap_ms"), "the time within which a second tap makes a double tap", 350, SIntValueOptions{.min = 150, .max = 800}));
     addKey(makeShared<CIntValue>(KEY("touch:double_tap_px"), "how close a second tap must land to make a double tap, in pixels", 40, SIntValueOptions{.min = 10, .max = 150}));
+    // The on-screen keyboard (NixOs-dots docs/manual.md#the-keyboard-in-hyprdrives-search).
+    addKey(makeShared<CStringValue>(KEY("keyboard:auto_monitors"), "monitors where the keyboard rises by itself when the overview's search opens: names, comma-separated",
+                                    Hyprlang::STRING{"stream"}));
     // The island (NixOS dots, docs/manual.md#the-hyprdrive-island): the zone here,
     // the rest read by the shell's island from hdpanel's store.
     addKey(makeShared<CBoolValue>(KEY("island:enabled"), "resting the pointer on the middle of the top edge opens the island", true));

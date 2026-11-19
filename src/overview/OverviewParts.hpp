@@ -12,6 +12,7 @@
 #include <hyprland/src/render/pass/RendererHintsPassElement.hpp>
 #include <hyprland/src/managers/eventLoop/EventLoopManager.hpp>
 #include "ShowDesktop.hpp"
+#include "Keyboard.hpp"
 #include "OverviewInternal.hpp"
 #include "DebugPaths.hpp"
 #include "Mosaic.hpp"

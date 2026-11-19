@@ -15,6 +15,7 @@
 #include "BorderFade.hpp"
 #include "DockStacks.hpp"
 #include "FlightController.hpp"
+#include "Keyboard.hpp"
 #include "Mosaic.hpp"
 #include "Ripple.hpp"
 #include "WindowPill.hpp"
@@ -101,6 +102,9 @@ constexpr std::array SOURCES{
     // from RENDER_LAST_MOMENT, inside the pass. (Inside an overview the
     // overview's pacer asks for it as well.)
     SSource{"ripple", [](const PHLMONITOR& monitor) { return Ripple::activeOn(monitor); }, ESlot::AFTER_ARRANGE},
+
+    // The on-screen keyboard's slide and the fade of a pressed key (Keyboard.hpp).
+    SSource{"keyboard", [](const PHLMONITOR& monitor) { return Keyboard::animating(monitor); }, ESlot::AFTER_ARRANGE},
 };
 }
 
