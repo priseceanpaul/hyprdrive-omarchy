@@ -91,6 +91,13 @@ float COverview::workspaceOverviewLogicalOffset(size_t workspaceIdx, size_t acti
 }
 
 float COverview::workspaceOverviewAlpha(size_t workspaceIdx) const {
+    // A fill monitor's open app grid takes the cards' room. NixOs-dots docs/manual.md#one-app-drawer
+    if (const float COVER = Hyprdrive::AppGrid::coverFade(pMonitor.lock()); COVER > 0.F)
+        return (1.F - COVER) * workspaceInsertAlpha(workspaceIdx);
+    return workspaceInsertAlpha(workspaceIdx);
+}
+
+float COverview::workspaceInsertAlpha(size_t workspaceIdx) const {
     if (!workspaceInsertTransition.active || workspaceIdx >= images.size() || !images[workspaceIdx] || !images[workspaceIdx]->pWorkspace)
         return 1.F;
 

@@ -16,6 +16,9 @@ void toggle(PHLMONITOR monitor);
 void open(PHLMONITOR monitor);
 void close(PHLMONITOR monitor);
 bool isOpen(PHLMONITOR monitor);
+// 0..1, on the grid's own fade: how far an open grid on a fill monitor has
+// replaced the overview's cards and strip. 0 anywhere else.
+float coverFade(PHLMONITOR monitor);
 // The grid is up and the pointer is on its plate, not the dock or the search field.
 bool ownsPointer(PHLMONITOR monitor, const Vector2D& point);
 // The results band while the grid is shown: the room alone; the tiles leave as

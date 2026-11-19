@@ -5,7 +5,9 @@
 #include "Config.hpp"
 #include "Dock.hpp"
 #include "IOverview.hpp"
+#include "KeyboardInset.hpp"
 #include "OverviewRender.hpp"
+#include "SearchSession.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -330,11 +332,28 @@ void shapeFor(PHLMONITOR monitor) {
     g_state.rowsVisible = std::max(1, sc<int>((g_state.roomL - 2 * BAND_GAP - 2 * BASE_PAD * U) / (BASE_CELL_H * U)));
 }
 
+// A fill monitor's whole room: under the search row down to the dock, or the
+// keyboard. NixOs-dots docs/manual.md#one-app-drawer
+float fillRoomL(PHLMONITOR monitor) {
+    const float  H     = monitor->m_size.y;
+    const CBox   PILL  = Dock::layout(monitor).pill;
+    const float  DOCKL = PILL.empty() || PILL.y < H * monitor->m_scale / 2.0 ? 0.F : H - sc<float>(PILL.y / monitor->m_scale);
+    return std::max(0.F, H - std::max(DOCKL, Hyprdrive::KeyboardInset::easedL(monitor)) - OVERVIEW_SEARCH_ROWHL);
+}
+
 } // namespace
+
+float coverFade(PHLMONITOR monitor) {
+    if (!monitor || !g_state.fill || monitor->m_id != g_state.monitor || !ownerOn(monitor))
+        return 0.F;
+    return progress();
+}
 
 float bandL(PHLMONITOR monitor, float withTilesL, float aloneL, float bandNowL) {
     if (!g_state.shown || !ownerOn(monitor))
         return 0.F;
+    if (fillMonitor(monitor))
+        aloneL = std::max(aloneL, fillRoomL(monitor));
     g_state.roomL = aloneL;
     shapeFor(monitor);
     // One ease to the whole room; the tiles shrink until it passes theirs, then leave.

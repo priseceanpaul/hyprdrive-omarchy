@@ -728,7 +728,7 @@ bool COverview::stripUiContains(const Vector2D& point) const {
 
 PHLWORKSPACE COverview::workspaceAtStripPoint(const Vector2D& point, size_t* hoveredWorkspaceIdx) const {
     const auto MONITOR = pMonitor.lock();
-    if (!MONITOR || overviewStripLogicalHeight(MONITOR) <= 0.F)
+    if (!MONITOR || overviewStripLogicalHeight(MONITOR) <= 0.F || Hyprdrive::AppGrid::coverFade(MONITOR) > 0.5F) // (the app grid has taken its room)
         return nullptr;
 
     for (size_t workspaceIdx = 0; workspaceIdx < images.size(); ++workspaceIdx) {
@@ -1228,7 +1228,7 @@ void COverview::renderDetentBadge(PHLMONITOR monitor, float renderScale) {
 
     // Same driver the strip itself fades on, so the badge cannot outlive the
     // row it is sitting on when the overview is toggled shut mid-drag.
-    const float FADE = overviewGridProgress(renderScale);
+    const float FADE = overviewGridProgress(renderScale) * (1.F - Hyprdrive::AppGrid::coverFade(monitor)); // NixOs-dots docs/manual.md#one-app-drawer
     if (FADE < 0.01F)
         return;
 
@@ -1315,7 +1315,7 @@ void COverview::renderStrip(PHLMONITOR monitor, float renderScale, const Time::s
     // animates, so the reversal is not a second state that could disagree with
     // the first -- the close retargets that scale from wherever it is and this
     // follows. Everything the strip draws is multiplied by it, minis included.
-    const float FADE = overviewGridProgress(renderScale);
+    const float FADE = overviewGridProgress(renderScale) * (1.F - Hyprdrive::AppGrid::coverFade(monitor)); // NixOs-dots docs/manual.md#one-app-drawer
     if (FADE < 0.01F)
         return;
 
