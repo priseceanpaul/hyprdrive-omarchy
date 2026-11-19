@@ -416,6 +416,8 @@ var sections = [
       { title: "App drawer", rows: [
         { type: "slider", key: P + "apps:scale", label: "Size", min: 0.5, max: 3, step: 0.1, fmt: "fraction",
           desc: "The app grid's size as a multiple of its own: cells, icons, labels and padding." },
+        { type: "slider", key: P + "apps:label_px", label: "Label size", min: 9, max: 16, step: 1, fmt: "int",
+          desc: "The tile names' text size, before the size above is applied." },
         { type: "text", key: P + "apps:scale_monitors", label: "Size per screen", placeholder: "stream:1.8",
           desc: "A size for named screens, as name:size pairs separated by commas. A screen listed here ignores the size above." },
         { type: "text", key: P + "apps:fill_monitors", label: "Covers the workspace on", placeholder: "stream",

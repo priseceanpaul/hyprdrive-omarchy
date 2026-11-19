@@ -254,6 +254,7 @@ KEY_META = [
     _k(PLUGIN + "keyboard:repeat_delay_ms", "int", "keyboard", 400, min=150, max=1000),
     _k(PLUGIN + "keyboard:repeat_rate_ms", "int", "keyboard", 60, min=20, max=300),
     _k(PLUGIN + "apps:scale", "float", "keyboard", 1.0, min=0.5, max=3),
+    _k(PLUGIN + "apps:label_px", "float", "keyboard", 11.0, min=9, max=16),
     _k(PLUGIN + "apps:scale_monitors", "str", "keyboard", ""),
     _k(PLUGIN + "apps:fill_monitors", "str", "keyboard", "stream"),
     # Island (docs/manual.md#the-hyprdrive-island in the NixOS dots)

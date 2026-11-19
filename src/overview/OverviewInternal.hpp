@@ -1521,6 +1521,18 @@ inline float overviewTopChromeBottomRawL(PHLMONITOR monitor) {
                 continue;
 
             const auto& GEOM = LS->m_geometry;
+            // The island is full height with an input region of just its pill: the pill's foot counts, not the
+            // surface's. NixOs-dots docs/manual.md#one-app-drawer
+            if (LS->m_namespace == "omarchy-hyprdrive-island") {
+                const auto SURF = LS->m_layerSurface ? LS->m_layerSurface->m_surface.lock() : SP<CWLSurfaceResource>{};
+                if (!SURF)
+                    continue;
+                const auto IN = SURF->m_current.effectiveInputRegion().getExtents();
+                const float FOOT = sc<float>(GEOM.y) + sc<float>(IN.y + IN.h);
+                if (IN.w > 0 && IN.h > 0 && FOOT <= sc<float>(monitor->m_position.y) + sc<float>(monitor->m_size.y) / 3.F)
+                    bottom = std::max(bottom, FOOT);
+                continue;
+            }
             if (sc<float>(GEOM.w) < sc<float>(monitor->m_size.x) * 0.5F || sc<float>(GEOM.h) > sc<float>(monitor->m_size.y) / 3.F)
                 continue;
             if (sc<float>(GEOM.y) > sc<float>(monitor->m_position.y) + 1.F)

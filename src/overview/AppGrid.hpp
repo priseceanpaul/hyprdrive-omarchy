@@ -31,11 +31,16 @@ bool hidesWindow(const PHLWINDOW& window);
 // containerUp says the grid owns this monitor's overview (open, or folding back),
 // widthL what that container grows to, in logical px. NixOs-dots docs/manual.md#one-app-drawer
 bool  containerUp(PHLMONITOR monitor);
+// The band's resting room, logical px; and on a fill monitor the logical y the container
+// reaches down to (above the dock or keyboard), -1 elsewhere. NixOs-dots docs/manual.md#one-app-drawer
+float roomL();
+float bottomL(PHLMONITOR monitor);
 float widthL(PHLMONITOR monitor);
 
 // After the search, before the bar and dock, so the dock's menu lands on top.
-// container: the search's results container this frame, render px; the cells draw inside it.
-void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& container);
+// container: the search's results container this frame, render px; rest: the box it grows to.
+// The cells are laid out against rest and clipped to container.
+void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& container, const CBox& rest);
 
 // The overview's input hooks; true = claimed. Monitor-local render px.
 bool handleButton(PHLMONITOR monitor, const Vector2D& point, uint32_t button, bool pressed, uint32_t mainButton, uint32_t menuButton);

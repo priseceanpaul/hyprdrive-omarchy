@@ -802,7 +802,7 @@ void COverview::render() {
     renderDraggedWindow(MONITOR, ACTIVEIDX, PITCH, SCALE, NOW);
     renderSwapLabel(MONITOR);
     // G5's app grid, under the bar and the dock. NixOs-dots docs/manual.md#one-app-drawer
-    Hyprdrive::AppGrid::render(MONITOR, overviewGridProgress(SCALE), searchLayoutHere().pill, searchLayoutHere().containerBox);
+    Hyprdrive::AppGrid::render(MONITOR, overviewGridProgress(SCALE), searchLayoutHere().pill, searchLayoutHere().containerBox, searchLayoutHere().drawerRest);
 
     // TOP layers (the bar) here, under the dock. OVERLAY waits until after the
     // dock and the captions -- see the end of this function.

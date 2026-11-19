@@ -87,6 +87,8 @@ struct SSearchLayoutInputs {
     // as wide as drawerWL (logical px) allows. NixOs-dots docs/manual.md#one-app-drawer
     bool                           drawer = false;
     float                          drawerWL = 0.F;
+    float                          drawerRoomL = 0.F;    // the band the drawer rests at
+    float                          drawerBottomL = -1.F; // a fill monitor's lowest y; -1 elsewhere
 };
 
 // LAYOUT. Pure: monitor, animation values and the section set in, boxes out. It
@@ -237,9 +239,30 @@ static SSearchLayout layoutSearch(const SSearchLayoutInputs& IN, const std::vect
     if (out.selection >= sc<int>(RESULTS.size()))
         out.selection = sc<int>(RESULTS.size()) - 1;
 
+    // THE DRAWER'S CONTAINER is screen space: it skips the overview's zoom (which would shrink it to
+    // the zoom's share of its own cells) and hangs from the pill to the dock. NixOs-dots docs/manual.md#one-app-drawer
+    if (IN.drawer) {
+        const double MS   = MONITOR->m_scale;
+        const double GAP  = OVERVIEW_RESULT_PANELGAPL * MS;
+        const double TOP  = std::round(out.pill.y + out.pill.height + GAP);
+        const double REST_W = std::min<double>(IN.drawerWL * MS, MONITOR->m_size.x * MS);
+        const double BOTTOM = IN.drawerBottomL >= 0.F ? IN.drawerBottomL * MS - GAP : TOP + (IN.drawerRoomL - 2.F * OVERVIEW_RESULT_PANELGAPL) * MS;
+        const double REST_H = BOTTOM - TOP;
+        if (REST_W < 8 || REST_H < 8)
+            return out;
+        const double CX = MONITOR->m_size.x * MS / 2.0;
+        out.drawerRest  = CBox{std::round(CX - REST_W / 2.0), TOP, std::round(REST_W), std::round(REST_H)};
+        const double W  = std::clamp<double>(IN.width * MS, 0.0, REST_W);
+        const double H  = REST_H * std::clamp(IN.drawerRoomL > 1.F ? IN.band / IN.drawerRoomL : 1.F, 0.F, 1.F);
+        if (W < 2 || H < 2)
+            return out;
+        out.containerBox = CBox{std::round(CX - W / 2.0), TOP, std::round(W), std::round(H)};
+        return out;
+    }
+
     const float PAD_L      = SEARCH_PAD_L;
     const float DIV_GAPL   = SEARCH_DIV_GAPL;
-    const float MAX_SPANWL = IN.drawer ? std::max(overviewResultsSpanW(MONITOR), IN.drawerWL) : overviewResultsSpanW(MONITOR);
+    const float MAX_SPANWL = overviewResultsSpanW(MONITOR);
 
     float CONTAINER_WL = IN.width > 1.F ? std::min(IN.width, MAX_SPANWL) : 0.F;
     if (CONTAINER_WL < 8.F)
@@ -255,8 +278,6 @@ static SSearchLayout layoutSearch(const SSearchLayoutInputs& IN, const std::vect
         return out;
     container.round();
     out.containerBox = container;
-    if (SECTIONS.empty())
-        return out; // the drawer's: the grid draws its own cells inside this box
 
     // THE TOOL PANE. The rows are the tool's; lay out one header and a full-width
     // entry per row -- each still a hit, so the arrows and the pointer select
@@ -648,7 +669,9 @@ static void drawSearch(const SSearchLayout& L, bool pillLit, bool resultsLit, in
 
     if (DRAWBODY) {
     if (L.containerBox.width > 1.F) {
-        OverviewRender::themePlate(L.containerBox, roundFor(L.containerBox), POWER, FADE, true, resultsLit, Hyprdrive::BorderFade::key("search-results", renderMonitorId()));
+        const bool DRAWER = L.drawerRest.width > 1.F;
+        const int  DROUND = DRAWER ? std::min(sc<int>(std::round(Hyprdrive::Config::dockCornerRadius() * g_pHyprRenderer->m_renderData.pMonitor->m_scale)), sc<int>(std::round(std::min(L.containerBox.w, L.containerBox.h) / 2.0))) : 0;
+        OverviewRender::themePlate(L.containerBox, DRAWER ? DROUND : roundFor(L.containerBox), DRAWER ? 2.F : POWER, FADE, true, resultsLit, Hyprdrive::BorderFade::key("search-results", renderMonitorId()));
 
         for (const auto& divBox : L.dividers) {
             CRectPassElement::SRectData div;
@@ -1414,6 +1437,8 @@ void COverview::renderSearch(PHLMONITOR monitor, float renderScale) {
         .fieldWL     = FIELDMOTION.drawWidthL,
         .drawer      = Hyprdrive::AppGrid::containerUp(monitor) && !EMPTYRESULT,
         .drawerWL    = Hyprdrive::AppGrid::widthL(monitor),
+        .drawerRoomL = Hyprdrive::AppGrid::roomL(),
+        .drawerBottomL = Hyprdrive::AppGrid::bottomL(monitor),
     };
 
     SSearchLayout LAYOUT = layoutSearch(IN, RESULTS, SECTIONS);

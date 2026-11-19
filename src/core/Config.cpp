@@ -103,6 +103,7 @@ static void registerConfigValuesFor() {
     // compositor plugin must not start doing that on its own.
     addKey(makeShared<CFloatValue>(KEY("apps:scale"), "the app grid's size, as a multiple of its own (cells, icons, labels and padding); 1 = default", 1.F,
                                    SFloatValueOptions{.min = 0.5F, .max = 3.F}));
+    addKey(makeShared<CFloatValue>(KEY("apps:label_px"), "the app grid's tile label size, in logical px, before apps:scale", 11.F, SFloatValueOptions{.min = 9.F, .max = 16.F}));
     addKey(makeShared<CStringValue>(KEY("apps:scale_monitors"),
                                     "per-monitor app grid size, \"name:scale,name:scale\" (e.g. \"stream:1.8\"); a listed monitor overrides apps:scale", Hyprlang::STRING{""}));
     addKey(makeShared<CStringValue>(KEY("apps:fill_monitors"),

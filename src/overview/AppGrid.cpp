@@ -33,8 +33,7 @@ constexpr float BASE_CELL_W   = 148.F;
 constexpr float BASE_CELL_H   = 146.F;
 constexpr float BASE_ICON     = 72.F;
 constexpr float BASE_ICON_TOP = 16.F;
-constexpr float BASE_LABEL_Y  = 18.F; // below the icon, leaving the running dots room
-constexpr float BASE_LABEL_PX = 13.F;
+constexpr float BASE_LABEL_Y  = 10.F; // below the icon, leaving the running dots room
 constexpr float BASE_PAD      = 24.F;
 constexpr float BAND_GAP = 10.F; // inside the band, above and below: the container's
 constexpr float SIDE     = 0.08F;
@@ -115,7 +114,7 @@ struct SState {
     // Last frame's geometry, which the pointer and the keyboard read.
     CBox   plate;
     CBox   pill;
-    double x0 = 0, y0 = 0, cellW = 1, cellH = 1;
+    double x0 = 0, y0 = 0, cellW = 1, cellH = 1, restX0 = 0;
     float  roomL = 0;      // the band's whole room once the tiles are out, logical px
     bool   full  = false;  // past the first stage: the tiles shrank and are now out
     int    cols = 1, rowsVisible = 1;
@@ -297,13 +296,13 @@ bool isModifier(uint32_t keysym) {
         keysym == XKB_KEY_Num_Lock;
 }
 
-void addRect(const CBox& box, const CHyprColor& color, int round, const CBox& clip = {}) {
+void addRect(const CBox& box, const CHyprColor& color, int round, const CBox& clip = {}, float power = -1.F) {
     CRectPassElement::SRectData rect;
     rect.box           = box;
     rect.clipBox       = clip;
     rect.color         = color;
     rect.round         = round;
-    rect.roundingPower = Hyprdrive::Config::themeRoundingPower();
+    rect.roundingPower = power > 0.F ? power : Hyprdrive::Config::themeRoundingPower();
     g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(rect));
 }
 
@@ -327,11 +326,9 @@ int colsFor(PHLMONITOR monitor, bool fill) {
     return std::clamp(sc<int>((W - 2 * MG - 2 * BASE_PAD * U) / (BASE_CELL_W * U)), 1, MAX_COLS);
 }
 
-void shapeFor(PHLMONITOR monitor) {
-    const float U       = userScale(monitor);
-    g_state.fill        = fillMonitor(monitor);
-    g_state.cols        = colsFor(monitor, g_state.fill);
-    g_state.rowsVisible = std::max(1, sc<int>((g_state.roomL - 2 * BAND_GAP - 2 * BASE_PAD * U) / (BASE_CELL_H * U)));
+// apps:label_px, the tile label size in logical px before apps:scale.
+float labelPx() {
+    return std::clamp(Hyprdrive::Config::getValue<float>("plugin:hyprdrive:apps:label_px"), 9.F, 16.F);
 }
 
 // A fill monitor's whole room: under the search row down to the dock, or the
@@ -344,6 +341,19 @@ float fillRoomL(PHLMONITOR monitor) {
 }
 
 } // namespace
+
+float roomL() {
+    return g_state.roomL;
+}
+
+float bottomL(PHLMONITOR monitor) {
+    if (!monitor || !fillMonitor(monitor))
+        return -1.F;
+    const CBox PILL = Dock::layout(monitor).pill;
+    const float H   = monitor->m_size.y;
+    const float DOCKL = PILL.empty() || PILL.y < H * monitor->m_scale / 2.0 ? 0.F : H - sc<float>(PILL.y / monitor->m_scale);
+    return H - std::max(DOCKL, Hyprdrive::KeyboardInset::easedL(monitor));
+}
 
 bool containerUp(PHLMONITOR monitor) {
     return ownerOn(monitor) != nullptr;
@@ -371,7 +381,7 @@ float bandL(PHLMONITOR monitor, float withTilesL, float aloneL, float bandNowL) 
     if (fillMonitor(monitor))
         aloneL = std::max(aloneL, fillRoomL(monitor));
     g_state.roomL = aloneL;
-    shapeFor(monitor);
+    g_state.fill  = fillMonitor(monitor);
     // One ease to the whole room; the tiles shrink until it passes theirs, then leave.
     if (!g_state.full && bandNowL >= withTilesL - 1.F) {
         g_state.full = true;
@@ -443,7 +453,7 @@ void toggle(PHLMONITOR monitor) {
         open(monitor);
 }
 
-void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& container) {
+void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& container, const CBox& rest) {
     const auto OVERVIEW = ownerOn(monitor);
     if (!OVERVIEW)
         return;
@@ -455,42 +465,33 @@ void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& 
     // The plate is the search's own container (it grows out of the pill and folds back into it);
     // only the cells fade. NixOs-dots docs/manual.md#one-app-drawer
     const float ALPHA = progress() * fade;
-    if (ALPHA < 0.005F || container.width < 2 || container.height < 2)
+    if (ALPHA < 0.005F || container.width < 2 || container.height < 2 || rest.width < 2 || rest.height < 2)
         return;
 
-    const float  S      = std::max(monitor->m_scale, 0.01F) * userScale(monitor);
-    const double H      = monitor->m_size.y * monitor->m_scale;
-    const double CW0 = std::round(BASE_CELL_W * S), CH0 = std::round(BASE_CELL_H * S), P = std::round(BASE_PAD * S);
+    const float  S   = std::max(monitor->m_scale, 0.01F) * userScale(monitor);
+    const double CH0 = std::round(BASE_CELL_H * S), P = std::round(BASE_PAD * S);
 
     g_state.pill = searchPill;
-    // The shape is the open grid's; folding back keeps the last one so the cells do not jump.
+    // Cells are laid out against the container's resting box, so they never reflow while it grows or
+    // folds; its growing edge clips them. The last open shape is kept while folding back.
     if (g_state.shown) {
-        shapeFor(monitor);
-        double CW = CW0, CH = CH0;
-        // A fill monitor spreads normal-size icons over cells that reach its side margins and the container's resting height.
-        if (g_state.fill) {
-            const double SIDEPX  = std::round(std::max(12.0, monitor->m_size.x * FILL_SIDE) * monitor->m_scale);
-            const double RESTH   = (g_state.roomL - 2.F * BAND_GAP) * monitor->m_scale;
-            CW                   = std::max(CW0, std::floor((monitor->m_size.x * monitor->m_scale - 2 * SIDEPX - 2 * P) / g_state.cols));
-            if (RESTH >= 2 * P + CH0) {
-                g_state.rowsVisible = std::max(1, sc<int>((RESTH - 2 * P) / CH0));
-                CH                  = std::floor((RESTH - 2 * P) / g_state.rowsVisible);
-            }
-        }
-        g_state.extraTop = std::round((CH - CH0) / 2.0);
-        g_state.cellW    = CW;
-        g_state.cellH    = CH;
+        g_state.fill = fillMonitor(monitor);
+        const double INW = rest.width - 2 * P, INH = rest.height - 2 * P;
+        g_state.cols     = std::clamp(sc<int>((INW + 1.0) / (BASE_CELL_W * S)), 1, MAX_COLS);
+        g_state.rowsVisible = std::max(1, sc<int>(INH / CH0));
+        g_state.cellW    = std::max(1.0, std::floor(INW / g_state.cols));
+        g_state.cellH    = g_state.fill && INH >= CH0 ? std::floor(INH / g_state.rowsVisible) : CH0;
+        g_state.extraTop = std::round((g_state.cellH - CH0) / 2.0);
+        g_state.restX0   = std::round(rest.x + P + (INW - g_state.cols * g_state.cellW) / 2.0);
     }
     const double CH = g_state.cellH;
-    if (container.height < 2 * P || container.y + CH + 2 * P > H)
+    if (container.height < 2 * P)
         return;
 
-    // Cells sit where the open grid puts them, centred on the container as it grows and folds;
-    // the container's own edge clips them.
     g_state.plate = container;
-    g_state.x0    = std::round(container.x + (container.width - g_state.cols * g_state.cellW) / 2.0);
+    g_state.x0    = g_state.restX0;
     g_state.y0    = container.y + P;
-    g_state.view  = CBox{container.x, g_state.y0, container.width, container.height - P};
+    g_state.view  = CBox{container.x, g_state.y0, container.width, std::max(0.0, container.height - 2 * P)};
 
     // A touch glide runs here, a frame at a time, toward its row boundary.
     if (g_state.settling) {
@@ -502,13 +503,14 @@ void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& 
     }
     clampScroll();
 
-    const int ROUND = sc<int>(std::round(Hyprdrive::Config::themeRounding() * monitor->m_scale));
+    // The dock's radius family: the tile highlight takes two thirds of it.
+    const int ROUND = std::max(2, sc<int>(std::round(Hyprdrive::Config::dockCornerRadius() * monitor->m_scale * 2.F / 3.F)));
 
     const auto       INK = Hyprdrive::Config::themeForeground();
     const CHyprColor LABEL{INK.r, INK.g, INK.b, 0.95F};
     const auto       MOUSE = (g_pInputManager->getMouseCoordsInternal() - monitor->m_position) * monitor->m_scale;
     const int        HOVER = Dock::menuOpen() ? -1 : indexAt(MOUSE);
-    const int        FONT  = std::max(1, sc<int>(std::round(BASE_LABEL_PX * S)));
+    const int        FONT  = std::max(1, sc<int>(std::round(labelPx() * S)));
 
     // Any row that reaches into the view, clipped to it: the container is still growing, or mid-scroll.
     const double     VIEWEND  = g_state.view.y + g_state.view.height;
@@ -531,7 +533,7 @@ void render(PHLMONITOR monitor, float fade, const CBox& searchPill, const CBox& 
 
         if (I == HOVER || I == g_state.selection) {
             const double INSET = std::round(4.F * S);
-            addRect(CBox{CELL.x + INSET, CELL.y + INSET, CELL.width - 2 * INSET, CELL.height - 2 * INSET}, INK.modifyA((I == g_state.selection ? 0.16F : 0.10F) * ALPHA), ROUND, g_state.view);
+            addRect(CBox{CELL.x + INSET, CELL.y + INSET, CELL.width - 2 * INSET, CELL.height - 2 * INSET}, INK.modifyA((I == g_state.selection ? 0.16F : 0.10F) * ALPHA), ROUND, g_state.view, 2.F);
         }
 
         addTex(OverviewRender::appIcon(item.icon.empty() ? "application-x-executable" : item.icon), item.iconBox, ALPHA, g_state.view);

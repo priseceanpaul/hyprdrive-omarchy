@@ -447,6 +447,7 @@ struct SSearchLayout {
     } tool;
 
     CBox              containerBox;
+    CBox              drawerRest; // the app drawer's container at rest (render px); empty otherwise
     std::vector<CBox> dividers;
     std::vector<SCard> cards;
 };
