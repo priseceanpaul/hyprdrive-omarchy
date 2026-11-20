@@ -650,6 +650,31 @@ CHyprColor dockBackgroundColor() {
     return colorFromArgb(RGB).modifyA(OPACITY);
 }
 
+// The keyboard's plate: the dock's, unless follow_dock is off and a key is set.
+CHyprColor keyboardBackgroundColor() {
+    static auto& FOLLOW  = valueRef<Hyprlang::INT>("plugin:hyprdrive:keyboard:follow_dock");
+    static auto& COLORV  = valueRef<Hyprlang::INT>("plugin:hyprdrive:keyboard:background_color");
+    static auto& OPACITY = valueRef<Hyprlang::FLOAT>("plugin:hyprdrive:keyboard:background_opacity");
+    const auto   DOCK    = dockBackgroundColor();
+    if (*FOLLOW)
+        return DOCK;
+    const uint32_t ARGB = sc<uint32_t>(*COLORV);
+    const auto     HUE  = (ARGB >> 24) == 0 ? DOCK : colorFromArgb(ARGB);
+    return HUE.modifyA(*OPACITY >= 0.F ? std::clamp(sc<float>(*OPACITY), 0.F, 1.F) : DOCK.a);
+}
+
+// keyboard:key_color / label_color: the colour set, else the theme's foreground.
+CHyprColor keyboardInk(const std::string_view key) {
+    const auto ARGB = sc<uint32_t>(*valueRef<Hyprlang::INT>(std::string{"plugin:hyprdrive:keyboard:"} + std::string{key}));
+    return (ARGB >> 24) == 0 ? themeForeground() : colorFromArgb(ARGB, 1.F);
+}
+
+int keyboardCornerRadius() {
+    static auto& FOLLOW = valueRef<Hyprlang::INT>("plugin:hyprdrive:keyboard:follow_dock");
+    static auto& RADIUS = valueRef<Hyprlang::INT>("plugin:hyprdrive:keyboard:corner_radius");
+    return *FOLLOW || *RADIUS < 0 ? dockCornerRadius() : sc<int>(*RADIUS);
+}
+
 // Local patch: the pill follows decoration:rounding like every other theme
 // surface; dock:corner_radius is ignored. docs/manual.md#dock-theming
 int dockCornerRadius() {

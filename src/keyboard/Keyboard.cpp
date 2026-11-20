@@ -12,6 +12,7 @@
 #include "OverviewRender.hpp"
 
 #include <algorithm>
+#include <climits>
 #include <cmath>
 #include <cstdio>
 #include <cctype>
@@ -149,16 +150,20 @@ namespace Hyprdrive::Keyboard {
             return KL::boardWidthL(sc<float>(monitor->m_size.x), MARGIN_L, sc<float>(Hyprdrive::Config::getValue<int>("plugin:hyprdrive:keyboard:max_width")));
         }
 
+        bool island() { return Hyprdrive::Config::getValue<bool>("plugin:hyprdrive:keyboard:island_style"); }
+        // The gap under the plate: none in island style, which sits on the edge.
+        float marginL() { return island() ? 0.F : MARGIN_L; }
+
         // The plate at rest, centred, monitor-local RENDER px; `slid` is where it is now.
         CBox restingPlate(PHLMONITOR monitor) {
             const float S = monitor->m_scale;
-            return CBox{std::round((sc<float>(monitor->m_size.x) - widthL(monitor)) / 2.F * S), std::round((sc<float>(monitor->m_size.y) - MARGIN_L - heightL(monitor)) * S),
+            return CBox{std::round((sc<float>(monitor->m_size.x) - widthL(monitor)) / 2.F * S), std::round((sc<float>(monitor->m_size.y) - marginL() - heightL(monitor)) * S),
                         std::round(widthL(monitor) * S), std::round(heightL(monitor) * S)};
         }
 
         CBox slidPlate(PHLMONITOR monitor, float reveal) {
             CBox plate = restingPlate(monitor);
-            plate.y += std::round((1.F - reveal) * (heightL(monitor) + MARGIN_L) * monitor->m_scale);
+            plate.y += std::round((1.F - reveal) * (heightL(monitor) + marginL()) * monitor->m_scale);
             return plate;
         }
 
@@ -185,8 +190,8 @@ namespace Hyprdrive::Keyboard {
 
         void poke(PHLMONITOR monitor) {
             if (monitor)
-                FramePump::request(monitor, CBox{0.0, std::floor((sc<double>(monitor->m_size.y) - heightL(monitor) - MARGIN_L - 2.0) * monitor->m_scale),
-                                                  sc<double>(monitor->m_size.x) * monitor->m_scale, (heightL(monitor) + MARGIN_L + 2.0) * monitor->m_scale + 4.0});
+                FramePump::request(monitor, CBox{0.0, std::floor((sc<double>(monitor->m_size.y) - heightL(monitor) - marginL() - 2.0) * monitor->m_scale),
+                                                  sc<double>(monitor->m_size.x) * monitor->m_scale, (heightL(monitor) + marginL() + 2.0) * monitor->m_scale + 4.0});
         }
 
         PHLMONITOR monitorById(MONITORID id) {
@@ -230,7 +235,7 @@ namespace Hyprdrive::Keyboard {
             if (IT == g_reserved.end() || !IT->second)
                 return;
             if (const auto MON = monitorById(id)) {
-                MON->m_reservedArea.addType(Desktop::RESERVED_DYNAMIC_TYPE_LS, Vector2D{0.0, 0.0}, Vector2D{0.0, sc<double>(heightL(MON) + MARGIN_L)});
+                MON->m_reservedArea.addType(Desktop::RESERVED_DYNAMIC_TYPE_LS, Vector2D{0.0, 0.0}, Vector2D{0.0, sc<double>(heightL(MON) + marginL())});
                 g_layoutManager->invalidateMonitorGeometries(MON);
             }
         }
@@ -744,7 +749,7 @@ namespace Hyprdrive::Keyboard {
 
     float visibleHeightL(PHLMONITOR monitor) {
         const auto* B = monitor ? board(monitor->m_id) : nullptr;
-        return B ? (heightL(monitor) + MARGIN_L) * progress(*B) : 0.F;
+        return B ? (heightL(monitor) + marginL()) * progress(*B) : 0.F;
     }
 
     bool animating(PHLMONITOR monitor) {
@@ -776,16 +781,31 @@ namespace Hyprdrive::Keyboard {
 
         const float S        = monitor->m_scale;
         const CBox  PLATE    = slidPlate(monitor, REVEAL);
-        const int   ROUNDING = std::clamp(sc<int>(std::round(Hyprdrive::Config::dockCornerRadius() * S)), 2, sc<int>(PLATE.h / 4.0));
+        const int   ROUNDING = std::clamp(sc<int>(std::round(Hyprdrive::Config::keyboardCornerRadius() * S)), 2, sc<int>(PLATE.h / 4.0));
         if (!Stacks::drawableBox(PLATE))
             return;
 
-        Dock::frostedPlate(monitor, PLATE, ROUNDING, REVEAL);
+        // Island style slides off the edge rather than fading, so its ears stay one texture.
+        const bool FOLLOW = Hyprdrive::Config::getValue<bool>("plugin:hyprdrive:keyboard:follow_dock");
+        const auto BORDER = Hyprdrive::Config::restingBorderColor().modifyA(1.F);
+        const auto SIZE   = Hyprdrive::Config::getValue<int>("plugin:hyprdrive:keyboard:blur_size");
+        const auto PASSES = Hyprdrive::Config::getValue<int>("plugin:hyprdrive:keyboard:blur_passes");
+        // Following the dock in its own shape is the dock's exact plate, as before.
+        if (FOLLOW && !island())
+            Dock::frostedPlate(monitor, PLATE, ROUNDING, REVEAL);
+        else
+            Dock::stylePlate(monitor, PLATE, ROUNDING, island() ? 1.F : REVEAL,
+                             {.tint       = Hyprdrive::Config::keyboardBackgroundColor(),
+                              .edge       = BORDER,
+                              .blur       = FOLLOW || Hyprdrive::Config::getValue<bool>("plugin:hyprdrive:keyboard:blur"),
+                              .island     = island(),
+                              .blurSize   = FOLLOW || SIZE < 0 ? INT_MIN : SIZE,
+                              .blurPasses = FOLLOW || PASSES < 0 ? INT_MIN : PASSES});
 
-        if (!Crystal::enabled()) {
+        if (island() ? Hyprdrive::Config::getValue<bool>("plugin:hyprdrive:island:border") : !Crystal::enabled()) {
             CBorderPassElement::SBorderData border;
-            border.box           = PLATE.copy().round();
-            border.grad1.reset(Hyprdrive::Config::restingBorderColor().modifyA(1.F));
+            border.box           = (island() ? CBox{PLATE.x, PLATE.y, PLATE.w, PLATE.h + ROUNDING} : PLATE.copy()).round();
+            border.grad1.reset(BORDER);
             border.a             = REVEAL;
             border.borderSize    = std::max(1, Hyprdrive::Config::getValue<int>("general:border_size"));
             border.round         = ROUNDING;
@@ -796,7 +816,9 @@ namespace Hyprdrive::Keyboard {
         const auto  GRID   = gridFor(monitor, *B, PLATE);
         const auto& ROWS   = KL::rows(B->state.symbols);
         const auto  ACCENT = Hyprdrive::Config::highlightColor();
-        const auto  INK    = Hyprdrive::Config::themeForeground();
+        const auto  INK    = Hyprdrive::Config::keyboardInk("label_color");
+        const auto  CAP    = Hyprdrive::Config::keyboardInk("key_color");
+        const float CAPA   = Hyprdrive::Config::getValue<float>("plugin:hyprdrive:keyboard:key_opacity");
         const auto  ONLIT  = Hyprdrive::Config::highlightForeground();
         const float FADE   = B->pressRow < 0 || B->pressSymbols != B->state.symbols ? 0.F
                            : B->held        ? 1.F
@@ -817,7 +839,7 @@ namespace Hyprdrive::Keyboard {
 
                 CRectPassElement::SRectData fill;
                 fill.box           = BOX;
-                fill.color         = LIT > 0.F ? ACCENT.modifyA(std::max(0.08F, 0.85F * LIT) * REVEAL) : INK.modifyA(0.08F * REVEAL);
+                fill.color         = LIT > 0.F ? ACCENT.modifyA(std::max(0.08F, 0.85F * LIT) * REVEAL) : CAP.modifyA((CAPA >= 0.F ? CAPA : 0.08F) * REVEAL);
                 fill.round         = KEYR;
                 fill.roundingPower = 2.F;
                 if (Stacks::drawableBox(BOX))

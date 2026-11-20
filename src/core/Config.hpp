@@ -237,6 +237,9 @@ float         themeTextScale(); // 1 = Hyprdrive's own sizes; Omarchy's [font] b
 CHyprColor    dockIndicatorColor();
 CHyprColor    dockBackgroundColor();
 int           dockCornerRadius();
+CHyprColor    keyboardBackgroundColor(); // keyboard:follow_dock, else keyboard:background_*; docs/manual.md#one-keyboard
+int           keyboardCornerRadius();
+CHyprColor    keyboardInk(std::string_view key); // "key_color" or "label_color"
 // Local patch: general:col.active_border whole, every colour scaled by alpha --
 // the border the shell's popovers wear. docs/manual.md#dock-theming
 ::Config::CGradientValueData themeBorder(float alpha);

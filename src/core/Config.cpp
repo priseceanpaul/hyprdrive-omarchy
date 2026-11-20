@@ -420,6 +420,20 @@ static void registerConfigValuesFor() {
     addKey(makeShared<CIntValue>(KEY("keyboard:max_width"), "the widest the keyboard grows, in logical pixels", 820, SIntValueOptions{.min = 400, .max = 1600}));
     addKey(makeShared<CIntValue>(KEY("keyboard:repeat_delay_ms"), "how long a held repeating key waits before it starts to repeat", 400, SIntValueOptions{.min = 150, .max = 1000}));
     addKey(makeShared<CIntValue>(KEY("keyboard:repeat_rate_ms"), "the time between repeats of a held key", 60, SIntValueOptions{.min = 20, .max = 300}));
+    // The keyboard's look: the dock's plate while follow_dock is on, else these, each -1 / alpha 0 / unset falling back to the dock's.
+    addKey(makeShared<CBoolValue>(KEY("keyboard:follow_dock"), "the keyboard's plate takes the dock's colour, opacity, corner radius and blur; off, the keyboard:* style keys below apply", true));
+    addKey(makeShared<CColorValue>(KEY("keyboard:background_color"), "keyboard plate hue when follow_dock is off (alpha 0 = the dock's)", (Hyprlang::INT)0));
+    addKey(makeShared<CFloatValue>(KEY("keyboard:background_opacity"), "keyboard plate alpha when follow_dock is off (-1 = the dock's)", -1.F,
+                                   SFloatValueOptions{.min = -1.F, .max = 1.F}));
+    addKey(makeShared<CIntValue>(KEY("keyboard:corner_radius"), "keyboard plate corner radius when follow_dock is off (-1 = the dock's)", -1,
+                                 SIntValueOptions{.min = -1, .max = 40}));
+    addKey(makeShared<CBoolValue>(KEY("keyboard:blur"), "frost behind the keyboard plate when follow_dock is off", true));
+    addKey(makeShared<CIntValue>(KEY("keyboard:blur_size"), "keyboard blur size when follow_dock is off (-1 = the dock's)", -1, SIntValueOptions{.min = -1, .max = 64}));
+    addKey(makeShared<CIntValue>(KEY("keyboard:blur_passes"), "keyboard blur passes when follow_dock is off (-1 = the dock's)", -1, SIntValueOptions{.min = -1, .max = 10}));
+    addKey(makeShared<CBoolValue>(KEY("keyboard:island_style"), "the keyboard sits on the bottom edge like the island: square below, ears into the edge (applies with follow_dock on or off)", false));
+    addKey(makeShared<CColorValue>(KEY("keyboard:key_color"), "key cap hue (alpha 0 = the theme's foreground)", (Hyprlang::INT)0));
+    addKey(makeShared<CFloatValue>(KEY("keyboard:key_opacity"), "key cap alpha (-1 = 0.08)", -1.F, SFloatValueOptions{.min = -1.F, .max = 1.F}));
+    addKey(makeShared<CColorValue>(KEY("keyboard:label_color"), "key label colour (alpha 0 = the theme's foreground)", (Hyprlang::INT)0));
     // The island (NixOS dots, docs/manual.md#the-hyprdrive-island): the zone here,
     // the rest read by the shell's island from hdpanel's store.
     addKey(makeShared<CBoolValue>(KEY("island:enabled"), "resting the pointer on the middle of the top edge opens the island", true));

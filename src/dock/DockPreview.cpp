@@ -3,6 +3,8 @@
 #include "DockParts.hpp"
 #include "HoverTargetRule.hpp"
 
+#include <climits>
+
 namespace Hyprdrive::Dock {
 using namespace DockDetail;
 namespace DockDetail {
@@ -29,7 +31,7 @@ namespace DockDetail {
 // m_blurFB here was wrong for the desktop path (no behind-chrome pre-blur
 // exists) and broke once the shared draw path was rewritten.
 void queueDockFrost(PHLMONITOR monitor, const CBox& box, int rounding, float alpha, const CBox& clip = {}, const CRegion* shape = nullptr, bool currentPass = false,
-                           float roundingPower = 2.F) {
+                           float roundingPower = 2.F, int sizeKey = INT_MIN, int passesKey = INT_MIN) {
     if (!Stacks::drawableBox(box) || alpha <= 0.F) // box.empty() lets a NEGATIVE box through
         return;
     if (Hyprdrive::Crystal::enabled()) {
@@ -53,8 +55,9 @@ void queueDockFrost(PHLMONITOR monitor, const CBox& box, int rounding, float alp
     if (shape)
         blur.shape = shape->copy();
     // -1 on these keys means leave decoration:blur:* alone (X71).
-    blur.blurSize       = Config::getValue<int>(KEY_BLUR_SIZE);
-    blur.blurPasses     = Config::getValue<int>(KEY_BLUR_PASSES);
+    // sizeKey / passesKey: a caller's own values (the keyboard's), else the dock's.
+    blur.blurSize       = sizeKey != INT_MIN ? sizeKey : Config::getValue<int>(KEY_BLUR_SIZE);
+    blur.blurPasses     = passesKey != INT_MIN ? passesKey : Config::getValue<int>(KEY_BLUR_PASSES);
     blur.blurBrightness = Config::getValue<float>(KEY_BLUR_BRIGHT);
     blur.blurNoise      = Config::getValue<float>(KEY_BLUR_NOISE);
     blur.blurContrast   = Config::getValue<float>(KEY_BLUR_CONTR);

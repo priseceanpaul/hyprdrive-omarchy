@@ -397,6 +397,7 @@ Item {
   function rowEnabled(row) {
     if (row.key && missingKeys[row.key]) return false
     switch (row.when) {
+    case "kbOwnStyle": return !kb("plugin:hyprdrive:keyboard:follow_dock")
     case "dockOn": return kb("plugin:hyprdrive:dock:enabled")
     case "fsDockGames": return kb("plugin:hyprdrive:dock:enabled") && !kb("plugin:hyprdrive:dock:hide_over_fullscreen")
     case "mountsOn": return kb("plugin:hyprdrive:dock:enabled") && kb("plugin:hyprdrive:dock:show_mounts")
@@ -429,6 +430,7 @@ Item {
     var n = Number(v)
     switch (row.fmt) {
     case "percent": return Math.round(n * 100) + "%"
+    case "followpercent": return n < 0 ? "Follow" : Math.round(n * 100) + "%"
     case "follow": return n < 0 ? "Follow" : String(Math.round(n)) + (row.unit ? " " + row.unit : "")
     case "deciseconds": return Math.round(n * 100) + " ms"
     case "samples": return n < 2 ? "Off" : String(Math.round(n))

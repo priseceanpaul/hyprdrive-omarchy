@@ -911,7 +911,8 @@ bool panelHoldsDock(PHLMONITOR monitor);
 bool ghostFlying();
 extern void updateAutohide(PHLMONITOR monitor, const STally& tally);
 extern CBox hoverBox(const CBox& iconBox, float scale);
-extern void queueDockFrost(PHLMONITOR monitor, const CBox& box, int rounding, float alpha, const CBox& clip, const CRegion* shape, bool currentPass, float roundingPower);
+extern void queueDockFrost(PHLMONITOR monitor, const CBox& box, int rounding, float alpha, const CBox& clip, const CRegion* shape, bool currentPass, float roundingPower,
+                          int sizeKey, int passesKey);
 // The dock on the bottom edge like the island on the top one. docs/manual.md#the-dock-grows-like-the-island
 extern bool islandStyle();
 

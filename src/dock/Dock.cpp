@@ -849,11 +849,11 @@ static CHyprColor islandTint() {
 }
 
 // `edge`: the pill's own border colour, so the ears carry it on unbroken.
-static void renderIslandEars(PHLMONITOR monitor, const CBox& pill, const CHyprColor& edge) {
+static void renderIslandEars(PHLMONITOR monitor, const CBox& pill, const CHyprColor& edge, const CHyprColor* tint = nullptr) {
     const int SIZE = sc<int>(std::round(std::min<double>(10.0 * monitor->m_scale, pill.h)));
     if (SIZE < 2)
         return;
-    const CHyprColor C    = islandTint();
+    const CHyprColor C    = tint ? *tint : islandTint();
     const bool       EDGE = Config::getValue<bool>(KEY_ISLAND_EDGE);
     const int        BW   = EDGE ? std::max(1, Hyprdrive::Config::getValue<int>("general:border_size")) : 0;
     const double     Y    = std::round(pill.y + pill.h - SIZE);
@@ -874,7 +874,7 @@ void frostedPlate(PHLMONITOR monitor, const CBox& box, int rounding, float alpha
     // on its first frame, with a small dock icon).
     if (!Stacks::drawableBox(box) || alpha <= 0.F)
         return;
-    queueDockFrost(monitor, box, rounding, alpha, clip, nullptr, currentPass, roundingPower);
+    queueDockFrost(monitor, box, rounding, alpha, clip, nullptr, currentPass, roundingPower, INT_MIN, INT_MIN);
 
     const auto                  TINT = background();
     CRectPassElement::SRectData bg;
@@ -888,6 +888,27 @@ void frostedPlate(PHLMONITOR monitor, const CBox& box, int rounding, float alpha
     else
         g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(bg));
     Hyprdrive::Crystal::bevel(box, rounding, alpha);
+}
+
+void stylePlate(PHLMONITOR monitor, const CBox& box, int rounding, float alpha, const SPlateStyle& style) {
+    if (!Stacks::drawableBox(box) || alpha <= 0.F)
+        return;
+    // Island: the bottom corners run off screen, and two ears join the edge.
+    const CBox PLATE = style.island ? CBox{box.x, box.y, box.w, box.h + rounding} : box;
+    if (style.blur)
+        queueDockFrost(monitor, PLATE, rounding, alpha, {}, nullptr, false, 2.F, style.blurSize, style.blurPasses);
+
+    const CHyprColor            TINT{style.tint.r, style.tint.g, style.tint.b, Hyprdrive::Crystal::tintAlpha(style.tint.a) * alpha};
+    CRectPassElement::SRectData bg;
+    bg.box           = PLATE;
+    bg.color         = TINT;
+    bg.round         = rounding;
+    bg.roundingPower = 2.F;
+    g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(bg));
+    if (style.island)
+        renderIslandEars(monitor, box, style.edge, &TINT);
+    else
+        Hyprdrive::Crystal::bevel(box, rounding, alpha);
 }
 
 void minimizeWithFlight(PHLMONITOR monitor, PHLWINDOW window, bool bounceOnLand, std::optional<CBox> startBox) {
@@ -1279,7 +1300,7 @@ void render(PHLMONITOR monitor) {
                                               Hyprdrive::Config::restingBorderColor(), Hyprdrive::Config::highlightColor().modifyA(1.F));
     const CBox PLATE = islandStyle() ? CBox{LAYOUT.pill.x, LAYOUT.pill.y, LAYOUT.pill.w, LAYOUT.pill.h + LAYOUT.rounding} : LAYOUT.pill;
     if (islandStyle()) {
-        queueDockFrost(monitor, PLATE, LAYOUT.rounding, 1.F, {}, nullptr, false, 2.F);
+        queueDockFrost(monitor, PLATE, LAYOUT.rounding, 1.F, {}, nullptr, false, 2.F, INT_MIN, INT_MIN);
         CRectPassElement::SRectData fill;
         fill.box           = PLATE;
         fill.color         = islandTint();

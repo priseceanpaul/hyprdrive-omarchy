@@ -8,6 +8,7 @@
 #include <hyprland/src/helpers/time/Time.hpp>  // Time::steady_tp: the frame clock a flight draw is stamped with
 #include <hyprland/src/desktop/state/FocusState.hpp> // Desktop::eFocusReason: noteFocus
 
+#include <climits>
 #include <string>
 #include <vector>
 
@@ -461,6 +462,19 @@ CHyprColor accentColor(); // Hyprland's active border colour (the theme accent)
 // queue into the pass the window previews go to (OverviewWindow uses
 // currentPass()), so the plate never comes apart from them under a nested pass.
 void frostedPlate(PHLMONITOR monitor, const CBox& box, int rounding, float alpha, const CBox& clip = {}, float roundingPower = 2.F, bool currentPass = false);
+
+// frostedPlate with its own tint and blur, for the keyboard. `island`: the plate
+// reaches `rounding` below `box` and ears join the edge, carrying `edge` on.
+// blurSize / blurPasses: -1 follows decoration:blur:*, INT_MIN the dock's keys.
+struct SPlateStyle {
+    CHyprColor tint;
+    CHyprColor edge;
+    bool       blur       = true;
+    bool       island     = false;
+    int        blurSize   = INT_MIN;
+    int        blurPasses = INT_MIN;
+};
+void stylePlate(PHLMONITOR monitor, const CBox& box, int rounding, float alpha, const SPlateStyle& style);
 
 // A dragged icon is drawn as a translucent CLONE -- the original is still in its
 // cell, and the copy under the pointer says so. ONE token because there are two

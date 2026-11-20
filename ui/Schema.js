@@ -413,6 +413,20 @@ var sections = [
         { type: "slider", key: P + "keyboard:repeat_rate_ms", label: "Repeat interval", min: 20, max: 300, step: 10, unit: "ms",
           desc: "The time between repeats while the key is held. Lower is faster." }
       ]},
+      { title: "Keyboard style", rows: [
+        { type: "toggle", key: P + "keyboard:follow_dock", label: "Look like the dock",
+          desc: "The keyboard's plate takes the dock's colour, opacity, corner radius and frost. Off, the settings below apply; any left on Follow still read the dock's." },
+        { type: "slider", key: P + "keyboard:background_opacity", label: "Opacity", min: -1, max: 1, step: 0.05, fmt: "followpercent", when: "kbOwnStyle" },
+        { type: "slider", key: P + "keyboard:corner_radius", label: "Corner radius", min: -1, max: 40, step: 1, fmt: "follow", unit: "px", when: "kbOwnStyle" },
+        { type: "toggle", key: P + "keyboard:blur", label: "Frost", when: "kbOwnStyle",
+          desc: "Blur what is behind the keyboard. Still off when Hyprland's own blur is off." },
+        { type: "slider", key: P + "keyboard:blur_size", label: "Blur size", min: -1, max: 32, step: 1, fmt: "follow", when: "kbOwnStyle" },
+        { type: "slider", key: P + "keyboard:blur_passes", label: "Blur passes", min: -1, max: 8, step: 1, fmt: "follow", when: "kbOwnStyle" },
+        { type: "toggle", key: P + "keyboard:island_style", label: "Island style",
+          desc: "Sit on the bottom edge the way the island hangs from the top: flush below, curving into the edge at both ends. Applies whether or not it follows the dock." },
+        { type: "slider", key: P + "keyboard:key_opacity", label: "Key opacity", min: -1, max: 0.5, step: 0.01, fmt: "followpercent",
+          desc: "How visible the key caps are. Leftmost is the default." }
+      ]},
       { title: "App drawer", rows: [
         { type: "slider", key: P + "apps:scale", label: "Size", min: 0.5, max: 3, step: 0.1, fmt: "fraction",
           desc: "The app grid's size as a multiple of its own: cells, icons, labels and padding." },
